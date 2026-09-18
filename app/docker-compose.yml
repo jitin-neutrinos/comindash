@@ -1,0 +1,97 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: insights
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-insights_local}
+      POSTGRES_DB: insights
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U insights -d insights"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://insights:${DB_PASSWORD:-insights_local}@db:5432/insights
+      SCHEDULER_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8080:8000"
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request as u; u.urlopen('http://localhost:8000/api/health').read()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  worker:
+    build: ./worker
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://insights:${DB_PASSWORD:-insights_local}@db:5432/insights
+    volumes:
+      - ./backend:/app/backend
+      - ./logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "127.0.0.1:8082:80"
+    networks:
+      - app_default
+      - bridge
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+  loki:
+    image: grafana/loki:2.9.4
+    volumes:
+      - ./loki-config.yml:/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:2.9.4
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v2.45.3
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=7d'
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  prometheus_data:
+
+networks:
+  app_default:
+    driver: bridge
+  bridge:
+    external: true

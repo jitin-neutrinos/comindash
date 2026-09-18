@@ -1,0 +1,69 @@
+@import './brand/tokens.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-mist font-sans font-light leading-relaxed text-black antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--neu-blue);
+    outline-offset: 2px;
+  }
+  /* Dark rail/drawer surfaces: Celeste focus ring for visible contrast. */
+  aside :focus-visible {
+    outline-color: var(--neu-celeste);
+  }
+}
+
+/* Sidebar rail nav — slim, unobtrusive scrollbar on the dark surface. */
+aside nav {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, white 18%, transparent) transparent;
+}
+aside nav::-webkit-scrollbar {
+  width: 6px;
+}
+aside nav::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, white 18%, transparent);
+  border-radius: 999px;
+}
+
+/* Skeleton shimmer — pure CSS (no JS), token-derived tint. */
+@keyframes neu-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--neu-midnight-blue) 4%, transparent) 25%,
+    color-mix(in srgb, var(--neu-midnight-blue) 9%, transparent) 50%,
+    color-mix(in srgb, var(--neu-midnight-blue) 4%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  animation: neu-shimmer 1.6s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
