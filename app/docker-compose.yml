@@ -1,6 +1,9 @@
 services:
   db:
     image: pgvector/pgvector:pg16
+    networks:
+      app_default:
+        ipv4_address: 172.22.0.5
     environment:
       POSTGRES_USER: insights
       POSTGRES_PASSWORD: ${DB_PASSWORD:-insights_local}
@@ -18,6 +21,11 @@ services:
 
   backend:
     build: ./backend
+    networks:
+      app_default:
+        ipv4_address: 172.22.0.3
+        aliases:
+          - backend
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://insights:${DB_PASSWORD:-insights_local}@db:5432/insights
@@ -38,6 +46,11 @@ services:
 
   worker:
     build: ./worker
+    networks:
+      app_default:
+        ipv4_address: 172.22.0.4
+        aliases:
+          - worker
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://insights:${DB_PASSWORD:-insights_local}@db:5432/insights
@@ -55,7 +68,6 @@ services:
       - "127.0.0.1:8082:80"
     networks:
       - app_default
-      - bridge
     depends_on:
       - backend
     restart: unless-stopped
@@ -93,5 +105,17 @@ volumes:
 networks:
   app_default:
     driver: bridge
+    ipam:
+      config:
+        - subnet: 172.22.0.0/16
+          gateway: 172.22.0.1
   bridge:
     external: true
+
+# Fixed per-service IPs so a daemon restart can never renumber db out from
+# under a running backend/worker (2026-09-23: reboot moved db .5→.2, backend's
+# cached addr failed with "Connect call failed ('172.22.0.5', 5432)").
+x-static-ips:
+  db: 172.22.0.5
+  backend: &backend_ip 172.22.0.3
+  worker: 172.22.0.4
