@@ -18,7 +18,8 @@ export default function PriorityDistribution({ data, loading, height = 280 }) {
 
   return (
     <div className="w-full" style={{ height }} role="img" aria-label="Priority distribution">
-      <ResponsiveContainer width="100%" height="100%">
+      <div style={{ height: Math.round(height * 0.78) }}>
+        <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Tooltip content={<BrandTooltip formatter={(v) => `${v} posts`} />} />
           <Pie
@@ -43,6 +44,7 @@ export default function PriorityDistribution({ data, loading, height = 280 }) {
             {d.name} {Math.round((d.value / total) * 100)}%
           </PillTag>
         ))}
+      </div>
       </div>
     </div>
   )
