@@ -45,18 +45,18 @@ export default function PainPoints() {
           <div className="space-y-4 mt-4">
             {/* R1: High-priority backlog --> */}
             <FrameCard title="High-priority backlog" accent={colors.salmon} lift={false} infoKey="highPriorityBacklog">
-              <div className="flex items-baseline gap-6">
-                <div>
+              <div className="flex items-baseline gap-4 md:gap-6 overflow-hidden">
+                <div className="min-w-0 shrink-0">
                   <p className="text-h2 font-semibold tabular-nums tracking-tight text-salmon">{ov?.highPriorityCount ?? 0}</p>
                   <p className="text-caption text-muted">posts high priority</p>
                 </div>
                 <div className="border-l border-hairline h-10" />
-                <div>
+                <div className="min-w-0 overflow-hidden">
                   <p className="text-caption text-muted mb-1">High pain points</p>
                   <PillTag color={semantics.severity.high} dot>
                     {(pains ?? []).filter(p => p.severity === 'high').length} high
                   </PillTag>
-                  <div className="mt-2 space-y-1">
+                  <div className="mt-2 space-y-1 overflow-hidden">
                     {(pains ?? []).filter(p => p.severity === 'high').slice(0, 2).map(p => (
                       <p key={p.id} className="text-small text-muted truncate">{p.title}</p>
                     ))}
@@ -80,7 +80,7 @@ export default function PainPoints() {
             </FrameCard>
             {/* R3: Evidence footprint --> */}
             <FrameCard title="Evidence footprint" accent={colors.celeste} lift={false} infoKey="evidenceFootprint">
-              <div className="flex items-baseline gap-8">
+              <div className="flex items-baseline gap-4 md:gap-8 overflow-hidden">
                 <div>
                   <p className="text-h4 font-semibold tabular-nums">{(pains ?? []).reduce((s, p) => s + (p.evidenceCount || 0), 0)}</p>
                   <p className="text-caption text-muted">total evidence</p>
