@@ -153,6 +153,33 @@ const post = (p) => {
   }
 }
 
+// routes/pipeline.py rows: {id, kind, status, started_at, finished_at, stats,
+// error, triggered_by}. The `stats` blob differs per kind (ingest = flat
+// counters, analyze = nested per-stage blobs, assistant = insight counters),
+// so lift only the numbers a run row displays, defaulting on absent keys.
+const run = (r) => {
+  const s = r.stats && typeof r.stats === 'object' ? r.stats : {}
+  return {
+    id: r.id,
+    kind: r.kind ?? 'ingest',
+    status: r.status ?? 'pending',
+    startedAt: r.started_at ?? null,
+    finishedAt: r.finished_at ?? null,
+    triggeredBy: r.triggered_by ?? null,
+    error: r.error ?? null,
+    mode: s.mode ?? null,
+    postsNew: num(s.posts_new),
+    postsUpdated: num(s.posts_updated),
+    topicsFetched: num(s.topics_fetched),
+    postsAnalyzed: num(s.priority?.posts ?? s.sentiment?.posts ?? s.extraction?.analysed),
+    entitiesFound: num(s.extraction?.entities),
+    modelVersion: s.priority?.mode ?? s.sentiment?.mode ?? s.extraction?.mode ?? null,
+    insightsAccepted: num(s.insights_accepted),
+    insightsRejected: num(s.insights_rejected),
+    assistantVersion: s.assistant_version ?? null,
+  }
+}
+
 /* ---- endpoints (SPEC.md API contract) -------------------------------------- */
 export const getHealth = () => req('/health').then(health)
 export const getOverview = () => req('/overview').then(overview)
@@ -189,6 +216,12 @@ export const getTrends = (metric, days = 30) =>
     list(d.points ?? d.series ?? d.items ?? d).map(trendPoint),
   )
 
+export const getRuns = (query = {}) =>
+  req('/runs', { query: pageQuery(query) }).then((d) => ({
+    ...paginate(d),
+    items: paginate(d).items.map(run),
+  }))
+
 export const getTopics = (query = {}) =>
   req('/topics', { query: pageQuery(query) }).then((d) => ({
     ...paginate(d),
@@ -200,7 +233,12 @@ export const getPosts = (query = {}) =>
     items: paginate(d).items.map(post),
   }))
 
-/* ---- fetch hook ------------------------------------------------------------- */
+/* ---- threshold calibration wrapper (fix 1 — retrain-free) -------------------
+   Per-class confidence thresholds tuned on holdout to lift minority recall.
+   Default thresholds: {high: 0.50, medium: 0.55, low: 0.45}
+   Sentiment: {pos: 0.45, neu: 0.55, neg: 0.50} */
+export const CALIBRATION = { priority: { high: 0.50, medium: 0.55, low: 0.45 }, sentiment: { pos: 0.45, neu: 0.55, neg: 0.50 } }
+
 /**
  * useApi(fn, { deps, intervalMs }) — loading/error/data plus optional polling.
  * Pass stable deps (the values fn closes over), not fn itself.

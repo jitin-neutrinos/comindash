@@ -15,7 +15,6 @@ export default function MetricCard({ label, value = 0, format, hint, accent = co
   return (
     <article
       className="card-lift rounded-xl border border-line bg-white p-6"
-      style={{ borderLeft: `2px solid ${accent}` }}
     >
       <div className="relative flex items-start justify-between gap-2">
         <p className="min-w-0 text-caption font-medium uppercase tracking-wider text-muted">{label}</p>

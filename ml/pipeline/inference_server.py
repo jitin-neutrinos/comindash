@@ -21,12 +21,17 @@ import threading
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+import re
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 log = logging.getLogger("inference")
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CKPT = os.path.join(HERE, "..", "laya", "checkpoints", "insights-v1")
+# Fine-tuned 2026-09-27 (macro F1 89.6% on holdout vs 43% zero-shot avg across
+# person/product/email — see ml/gliner_finetune.log). Falls back to the
+# zero-shot base model if the checkpoint is ever missing/moved.
+GLINER_CKPT = os.path.join(HERE, "..", "gliner", "checkpoints", "forum-v2")
 
 PRIORITY_Q = {
     "type": "choice",
@@ -48,6 +53,12 @@ SENTIMENT_Q = {
 }
 GLINER_LABELS = ["person", "product", "email"]
 
+# Measured 2026-09-27 (docs/model-audit-2026-09-27.md): GLiNER's zero-shot EMAIL
+# label mostly fires on bare @mentions, not real addresses (41% F1). A regex
+# backstop for real addresses + a filter that drops non-matching "email"
+# predictions took the same sample to P=83% R=90% F1=86%.
+_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
 MODELS_LOCK = threading.Lock()
 MODELS: dict = {}
 
@@ -59,8 +70,12 @@ def load_models() -> None:
     device = "cuda" if os.environ.get("SIDECAR_FORCE_CPU", "") != "1" else "cpu"
     log.info("loading Laya from %s (device=%s)", CKPT, device)
     MODELS["laya"] = Agent(CKPT, device=device)
-    log.info("loading GLiNER urchade/gliner_medium-v2.1")
-    MODELS["gliner"] = GLiNER.from_pretrained("urchade/gliner_medium-v2.1")
+    if os.path.isdir(GLINER_CKPT):
+        log.info("loading fine-tuned GLiNER checkpoint from %s", GLINER_CKPT)
+        MODELS["gliner"] = GLiNER.from_pretrained(GLINER_CKPT)
+    else:
+        log.info("fine-tuned checkpoint not found, loading zero-shot urchade/gliner_medium-v2.1")
+        MODELS["gliner"] = GLiNER.from_pretrained("urchade/gliner_medium-v2.1")
     if device == "cuda":
         MODELS["gliner"] = MODELS["gliner"].to("cuda")
     log.info("models ready")
@@ -87,9 +102,18 @@ def extract(texts: list[str]) -> list[list[dict]]:
     out = []
     with MODELS_LOCK:
         for t in texts:
-            ents = MODELS["gliner"].predict_entities(t or " ", GLINER_LABELS, threshold=0.5)
-            out.append(
-                [
+            text = t or " "
+            ents = MODELS["gliner"].predict_entities(text, GLINER_LABELS, threshold=0.5)
+            results: list[dict] = []
+            seen_spans: set[tuple[int, int]] = set()
+            for e in ents:
+                if e["label"] == "email" and not _EMAIL_RE.fullmatch(e["text"].strip()):
+                    continue  # @mention misclassified as email, drop it
+                span = (e["start"], e["end"])
+                if span in seen_spans:
+                    continue
+                seen_spans.add(span)
+                results.append(
                     {
                         "entity_text": e["text"],
                         "entity_label": e["label"],
@@ -97,9 +121,23 @@ def extract(texts: list[str]) -> list[list[dict]]:
                         "end_pos": e["end"],
                         "confidence": round(float(e.get("score", 0.0)), 4),
                     }
-                    for e in ents
-                ]
-            )
+                )
+            for m in _EMAIL_RE.finditer(text):  # backstop for real addresses GLiNER missed
+                span = (m.start(), m.end())
+                if span in seen_spans:
+                    continue
+                seen_spans.add(span)
+                results.append(
+                    {
+                        "entity_text": m.group(0),
+                        "entity_label": "email",
+                        "start_pos": m.start(),
+                        "end_pos": m.end(),
+                        "confidence": 0.95,
+                    }
+                )
+            results.sort(key=lambda r: r["start_pos"])
+            out.append(results)
     return out
 
 

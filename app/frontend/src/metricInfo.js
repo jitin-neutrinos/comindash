@@ -49,10 +49,10 @@ export const METRIC_INFO = {
   },
   metricsPage: {
     title: 'Metrics explorer',
-    what: 'The same numbers as the Overview, but plotted over time so you can see the direction of travel.',
-    how: 'Pick a measure and a time window; the chart redraws from daily totals for that period.',
-    fresh: 'Recalculated each time you change the measure or the window.',
-    links: ['totalPosts', 'avgSentiment', 'highPriority'],
+    what: 'The dashboard’s metrics room — trends over time, plus the pipeline runs and model confidence behind the numbers.',
+    how: 'Charts daily totals for the measure and window you pick; the panels below read run history and model confidence straight from the API.',
+    fresh: 'Trends and runs are live; insights refresh overnight.',
+    links: ['totalPosts', 'avgSentiment', 'highPriority', 'modelConfidence'],
   },
   painPointsPage: {
     title: 'Pain points',
@@ -139,6 +139,29 @@ export const METRIC_INFO = {
     how: 'The AI pulls names out of each post; the ten most mentioned are ranked here.',
     fresh: 'Live.',
     links: ['totalPosts'],
+  },
+
+  /* ---- Metrics & model observability ------------------------------------ */
+  tabInsight: {
+    title: 'Tab insights',
+    what: 'A short read on whichever metric tab is selected above — volume, sentiment, priority mix or entities — built from the real numbers in the current window.',
+    how: 'Computed live from the trend data and overview totals for the selected tab and day window; nothing here is fixed text.',
+    fresh: 'Live — recalculates on every tab or window change.',
+    links: ['metricsPage'],
+  },
+  tabHighlights: {
+    title: 'Tab highlight',
+    what: 'The headline number for whichever metric tab is selected above.',
+    how: 'Same data behind the chart and the insight panel, reduced to one number.',
+    fresh: 'Live.',
+    links: ['metricsPage'],
+  },
+  insightSeverity: {
+    title: 'Insight severity',
+    what: 'How the assistant’s active pain-point insights split by severity — the shape of the workload behind the headline count.',
+    how: 'Active pain-point insights grouped by their severity rating and counted.',
+    fresh: 'Live counts over insights rebuilt overnight.',
+    links: ['activePainPoints', 'highPriority'],
   },
 
   /* ---- Pain points ------------------------------------------------------ */

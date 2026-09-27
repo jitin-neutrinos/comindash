@@ -71,7 +71,7 @@ export default function InsightDetail() {
           {insight.evidence.length ? (
             <ul className="space-y-5">
               {insight.evidence.map((e, i) => (
-                <li key={`${e.postId}-${i}`} className="border-l-2 border-blue pl-4">
+                <li key={`${e.postId}-${i}`} className="pl-4">
                   <blockquote className="italic">{e.quote}</blockquote>
                   {e.relevanceNote && (
                     <p className="mt-1 text-small font-light text-muted">{e.relevanceNote}</p>

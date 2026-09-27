@@ -69,15 +69,20 @@ async def trends(
         )
         by_date = {}
         for d, sentiment, avg_intensity, n in rows:
-            bucket = by_date.setdefault(str(d), {"weighted": 0.0, "n": 0})
+            bucket = by_date.setdefault(
+                str(d), {"weighted": 0.0, "n": 0, "pos": 0.0, "neu": 0.0, "neg": 0.0}
+            )
             sign = {Sentiment.pos: 1.0, Sentiment.neu: 0.0, Sentiment.neg: -1.0}[
                 sentiment
             ]
             bucket["weighted"] += sign * (avg_intensity or 0.0) * n
             bucket["n"] += n
+            bucket[sentiment.value] += float(n)
         return [
             TrendPointOut(
-                date=d, value=round(b["weighted"] / b["n"], 4) if b["n"] else 0.0
+                date=d,
+                value=round(b["weighted"] / b["n"], 4) if b["n"] else 0.0,
+                extra={"pos": b["pos"], "neu": b["neu"], "neg": b["neg"]},
             )
             for d, b in sorted(by_date.items())
         ]
@@ -93,7 +98,7 @@ async def trends(
     )
     return [
         TrendPointOut(
-            date=f"{label}:{text[:40]}", value=float(n), extra={"count": float(n)}
+            date=f"{label.upper()}:{text[:40]}", value=float(n), extra={"count": float(n)}
         )
         for text, label, n in rows
     ]
