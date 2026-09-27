@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { getOverview, getTrends, useApi } from '../api'
 import { colors, semantics } from '../theme'
 import { usePageChoreo } from '../motion'
@@ -137,14 +137,22 @@ export default function MetricsExplorer() {
       active ? 'bg-blue text-white' : 'bg-white text-black/70 hover:text-blue'
     }`
 
-  const priorityData = ['high', 'medium', 'low'].map((name) => ({
-    name: name[0].toUpperCase() + name.slice(1),
-    value: (data ?? []).reduce((sum, d) => sum + (d[name] ?? 0), 0),
-  }))
-  const entityData = (data ?? [])
-    .filter((d) => d.label)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10)
+  const priorityData = useMemo(
+    () =>
+      ['high', 'medium', 'low'].map((name) => ({
+        name: name[0].toUpperCase() + name.slice(1),
+        value: (data ?? []).reduce((sum, d) => sum + (d[name] ?? 0), 0),
+      })),
+    [data],
+  )
+  const entityData = useMemo(
+    () =>
+      (data ?? [])
+        .filter((d) => d.label)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10),
+    [data],
+  )
 
   const insight = computeTabInsight(metric, data, ov, priorityData, entityData)
 
