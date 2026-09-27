@@ -1,6 +1,15 @@
-"""GET /api/health — {status, db, scheduler, last_run per kind}."""
+"""GET /api/health — {status, db, scheduler, last_run per kind}.
+
+The last-run lookups are cached for HEALTH_CACHE_S (default 30s): this endpoint
+is polled by the compose healthcheck AND two frontend components, and the
+audit (AUDIT-2026-09-24.md) measured ~16k queries per day from it uncached.
+A forced refresh is available via ?refresh=1.
+"""
 
 from __future__ import annotations
+
+import os
+import time
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy import select
@@ -11,6 +20,18 @@ from app.models import PipelineRun, RunKind
 from app.schemas import HealthOut, LastRunOut
 
 router = APIRouter(prefix="/api", tags=["health"])
+
+HEALTH_CACHE_S = float(os.environ.get("HEALTH_CACHE_S", "30"))
+
+
+def _get_cache(request: Request) -> dict:
+    """Per-app-instance cache: one app per process in prod, fresh app per
+    test — never shares stale runs across instances."""
+    cache = getattr(request.app.state, "_health_cache", None)
+    if cache is None:
+        cache = {"at": 0.0, "runs": None}
+        request.app.state._health_cache = cache
+    return cache
 
 
 async def last_run_per_kind(session: AsyncSession) -> dict[str, LastRunOut]:
@@ -38,7 +59,9 @@ async def last_run_per_kind(session: AsyncSession) -> dict[str, LastRunOut]:
 
 @router.get("/health", response_model=HealthOut)
 async def health(
-    request: Request, session: AsyncSession = Depends(get_session)
+    request: Request,
+    refresh: bool = False,
+    session: AsyncSession = Depends(get_session),
 ) -> HealthOut:
     db = "ok"
     try:
@@ -47,6 +70,11 @@ async def health(
         db = "down"
     scheduler = getattr(request.app.state, "scheduler", None)
     scheduler_state = "running" if (scheduler and scheduler.running) else "disabled"
-    runs = await last_run_per_kind(session)
+    cache = _get_cache(request)
+    now = time.monotonic()
+    if refresh or db != "ok" or now - cache["at"] > HEALTH_CACHE_S or cache["runs"] is None:
+        cache["runs"] = await last_run_per_kind(session)
+        cache["at"] = now
+    runs = cache["runs"]
     status = "ok" if db == "ok" else "degraded"
     return HealthOut(status=status, db=db, scheduler=scheduler_state, last_run=runs)

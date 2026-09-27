@@ -28,16 +28,8 @@ def main() -> int:
     print(
         f"[ OK ] config: db={_host(s.database_url)} discourse={_host(s.discourse_base_url)}"
     )
-    # A token is all a stage needs: AI Hub tokens are model- and version-
-    # specific and already carry the deployment binding (ai-hub/tokens).
-    stages = {
-        "ner": bool(s.aihub_token_ner),
-        "priority": bool(s.aihub_token_priority),
-        "sentiment": bool(s.aihub_token_sentiment),
-        "assistant": bool(s.aihub_assistant_token),
-    }
-    mode = {k: ("aihub" if v else "stub") for k, v in stages.items()}
-    print(f"[ OK ] ai hub stages: {mode} (stub mode is expected without tokens)")
+    mode = {k: "stub" for k in ("ner", "priority", "sentiment", "assistant")}
+    print(f"[ OK ] analysis stages: {mode}")
     print(f"[ OK ] ingest token: {'set' if s.ingest_token else 'MISSING'}")
 
     # 3. DB connectivity (optional)

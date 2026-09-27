@@ -1,0 +1,43 @@
+# --- python ---
+__pycache__/
+*.pyc
+.venv/
+.venv-validate/
+*.egg-info/
+
+# --- secrets ---
+.env
+*.env
+!*.example.env
+
+# --- models / heavy artifacts ---
+ml/laya/.venv/
+ml/laya/checkpoints/
+ml/laya/train_items.pt
+*.safetensors
+*.bin
+
+# --- logs & runtime ---
+app/logs/*.jsonl*
+ml/pipeline/*.log
+
+# --- node ---
+node_modules/
+dist/
+
+# --- local tooling noise ---
+arxiv_cache/
+graphify-out/
+jevnav-session.trace*.jsonl
+.codegraph
+.omo
+.directory
+
+# one-shot patch scripts (superseded work)
+patch_*.py
+fix_sidebar.py
+update_worker.py
+test_sidebar.py
+
+# scratch / reports from AI Hub era kept for reference but not the wizard dumps
+app/exports/playwright_*.yml

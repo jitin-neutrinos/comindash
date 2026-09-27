@@ -187,7 +187,7 @@ class TestHappyPath:
 class TestAssistantSkipMode:
     async def test_cycle_without_token_is_skip_not_crash(self, session):
         from app.models import PipelineRun, RunKind
-        from app.services.aihub.assistant import run_assistant_cycle
+        from app.services.analysis.assistant import run_assistant_cycle
 
         stats = await run_assistant_cycle(session=session)
         assert stats["mode"] == "skipped"
@@ -200,7 +200,7 @@ class TestAssistantSkipMode:
         assert run.stats["mode"] == "skipped"
 
     async def test_parse_assistant_reply_json_variants(self):
-        from app.services.aihub.assistant import parse_assistant_reply
+        from app.services.analysis.assistant import parse_assistant_reply
 
         assert parse_assistant_reply('{"insights": [{"title": "x"}]}') == [
             {"title": "x"}

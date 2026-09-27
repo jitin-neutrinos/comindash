@@ -1,5 +1,5 @@
 """GET /api/insights, GET /api/insights/{id},
-POST /api/insights/ingest (AI Hub assistant connector only)."""
+POST /api/insights/ingest (assistant write-back gate, token-authed)."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from app.schemas import (
     IngestResultOut,
     RelationshipOut,
 )
-from app.services.aihub import insights_gate
+from app.services import insights_gate
 
 logger = logging.getLogger("routes.insights")
 
@@ -158,7 +158,7 @@ async def ingest_insights_route(
     x_ingest_token: str | None = Header(default=None),
     session: AsyncSession = Depends(get_session),
 ) -> IngestResultOut:
-    """FOR AI HUB ASSISTANT CONNECTOR ONLY.
+    """Assistant write-back endpoint.
 
     Header ``X-Ingest-Token`` must match ``INGEST_TOKEN``. Payload is schema-
     + evidence-validated; invalid items are rejected with per-item 422 errors

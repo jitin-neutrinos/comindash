@@ -224,8 +224,28 @@ export function useApi(fn, { deps = [], intervalMs = 0 } = {}) {
 
   useEffect(() => {
     if (!intervalMs) return undefined
-    const id = setInterval(() => setTick((t) => t + 1), intervalMs)
-    return () => clearInterval(id)
+    // Pause polling while the tab is hidden (db-hit audit: a forgotten open
+    // tab polled health 24/7 — 2 pings/min per component).
+    let id
+    const start = () => {
+      id = setInterval(() => {
+        if (!document.hidden) setTick((t) => t + 1)
+      }, intervalMs)
+    }
+    const stop = () => id && clearInterval(id)
+    const onVis = () => {
+      stop()
+      if (!document.hidden) {
+        setTick((t) => t + 1) // refresh immediately on return
+        start()
+      }
+    }
+    if (!document.hidden) start()
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      stop()
+      document.removeEventListener('visibilitychange', onVis)
+    }
   }, [intervalMs])
 
   return state

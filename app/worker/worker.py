@@ -9,11 +9,10 @@ statement) and executes them.
 Job kinds
 ---------
 ingest         -> backend app.services.ingestion (incremental Discourse pull)
-analyze        -> backend app.services.aggregator / app.services.aihub.* (NER,
-                  priority, sentiment, rollups)
-assistant_cycle -> backend app.services.aihub.assistant (nightly analyst cycle)
-review_poll    -> backend app.services.aihub.review (pull Review Hub verdicts
-                  back into review_feedback; safe no-op with no AI Hub tokens)
+analyze        -> backend app.services.aggregator / app.services.analysis.* (NER,
+                  priority, sentiment, rollups; stub mode)
+assistant_cycle -> backend app.services.analysis.assistant (nightly analyst
+                  cycle; skip mode with no assistant backend configured)
 
 Backend coupling
 ----------------
@@ -97,6 +96,7 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql+asyncpg://insights:insights_local@localhost:5433/insights"
 )
 POLL_INTERVAL_S = float(os.environ.get("WORKER_POLL_INTERVAL_S", "5"))
+IDLE_BACKOFF_S = float(os.environ.get("WORKER_IDLE_BACKOFF_S", "30"))
 MAX_ATTEMPTS = int(os.environ.get("WORKER_MAX_ATTEMPTS", "5"))
 BACKOFF_BASE_S = float(os.environ.get("WORKER_BACKOFF_BASE_S", "30"))
 BACKOFF_CAP_S = float(os.environ.get("WORKER_BACKOFF_CAP_S", "3600"))
@@ -195,9 +195,9 @@ async def handle_analyze(job_id: int, payload: dict[str, Any]) -> dict[str, Any]
     stats = await _call_first_available(
         [
             ("app.services.aggregator", ["run_aggregation", "aggregate", "run", "run_analysis"]),
-            ("app.services.aihub.extraction", ["run_extraction", "extract", "run"]),
-            ("app.services.aihub.priority", ["run_priority", "run"]),
-            ("app.services.aihub.sentiment", ["run_sentiment", "run"]),
+            ("app.services.analysis.extraction", ["run_extraction", "extract", "run"]),
+            ("app.services.analysis.priority", ["run_priority", "run"]),
+            ("app.services.analysis.sentiment", ["run_sentiment", "run"]),
             ("app.services", ["run_analysis", "analyze"]),
         ],
         payload,
@@ -209,20 +209,8 @@ async def handle_assistant_cycle(job_id: int, payload: dict[str, Any]) -> dict[s
     log("handler_start", job_id=job_id, kind="assistant_cycle")
     stats = await _call_first_available(
         [
-            ("app.services.aihub.assistant", ["run_assistant_cycle", "run_cycle", "run"]),
-            ("app.services.aihub", ["run_assistant_cycle", "run_cycle"]),
+            ("app.services.analysis.assistant", ["run_assistant_cycle", "run_cycle", "run"]),
             ("app.services", ["run_assistant_cycle"]),
-        ],
-        payload,
-    )
-    return {"stats": stats if isinstance(stats, dict) else {"result": str(stats)}}
-
-
-async def handle_review_poll(job_id: int, payload: dict[str, Any]) -> dict[str, Any]:
-    log("handler_start", job_id=job_id, kind="review_poll")
-    stats = await _call_first_available(
-        [
-            ("app.services.aihub.review", ["run_review_poll", "run"]),
         ],
         payload,
     )
@@ -233,7 +221,6 @@ HANDLERS = {
     "ingest": handle_ingest,
     "analyze": handle_analyze,
     "assistant_cycle": handle_assistant_cycle,
-    "review_poll": handle_review_poll,
 }
 
 # ---------------------------------------------------------------------------
@@ -364,13 +351,16 @@ async def drain_once(conn: asyncpg.Connection, idle_stop: bool = False) -> int:
 async def run_loop() -> int:
     start_http_server(8000)
     log("worker_start", database_url_host=_dsn(DATABASE_URL).split("@")[-1].split("/")[0],
-        max_attempts=MAX_ATTEMPTS, poll_interval_s=POLL_INTERVAL_S)
+        max_attempts=MAX_ATTEMPTS, poll_interval_s=POLL_INTERVAL_S,
+        idle_backoff_s=IDLE_BACKOFF_S)
     conn = await connect_with_retry(_dsn(DATABASE_URL), attempts=30, delay_s=2.0)
     log("db_connected")
     await reconcile_stale_locks(conn)
+    idle_polls = 0
     while True:
+        processed = 0
         try:
-            await drain_once(conn)
+            processed = await drain_once(conn)
         except asyncpg.PostgresError as exc:
             log("db_error", level="error", error=str(exc))
             try:
@@ -381,7 +371,16 @@ async def run_loop() -> int:
             log("db_reconnected")
             await reconcile_stale_locks(conn)
         touch_heartbeat()
-        await asyncio.sleep(POLL_INTERVAL_S)
+        # Idle backoff (db-hit audit): a fully idle worker claimed jobs every
+        # 5s around the clock (~15k claims/21h). Busy → poll fast; idle →
+        # ramp to IDLE_BACKOFF_S. Any processed job resets the ramp.
+        if processed:
+            idle_polls = 0
+            await asyncio.sleep(POLL_INTERVAL_S)
+        else:
+            idle_polls += 1
+            delay = min(POLL_INTERVAL_S * idle_polls, IDLE_BACKOFF_S)
+            await asyncio.sleep(delay)
 
 
 async def run_smoke() -> int:

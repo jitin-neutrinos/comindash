@@ -12,9 +12,9 @@ from datetime import datetime, timezone
 from sqlalchemy import func, select
 
 from app.models import Extraction, Post, PriorityResult, Topic
-from app.services.aihub._stage import clear_markers, pending_posts
-from app.services.aihub.extraction import run_extraction
-from app.services.aihub.priority import run_priority
+from app.services.analysis._stage import clear_markers, pending_posts
+from app.services.analysis.extraction import run_extraction
+from app.services.analysis.priority import run_priority
 
 NOW = datetime(2026, 9, 11, tzinfo=timezone.utc)
 

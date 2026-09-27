@@ -8,9 +8,9 @@ import io
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.aihub.extraction import run_extraction
-from app.services.aihub.priority import run_priority
-from app.services.aihub.sentiment import run_sentiment
+from app.services.analysis.extraction import run_extraction
+from app.services.analysis.priority import run_priority
+from app.services.analysis.sentiment import run_sentiment
 from tests.conftest import INGEST_TOKEN
 from tests.corpus import seed_corpus
 

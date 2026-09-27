@@ -32,12 +32,6 @@ async def enqueue_assistant_cycle() -> None:
     logger.info("scheduler: enqueued assistant_cycle")
 
 
-async def enqueue_review_poll() -> None:
-    async with get_run_session() as session:
-        await jobs.enqueue(session, "review_poll", {"triggered_by": "scheduler"})
-    logger.info("scheduler: enqueued review_poll")
-
-
 def create_scheduler() -> AsyncIOScheduler:
     s = get_settings()
     scheduler = AsyncIOScheduler(timezone="UTC")
@@ -58,13 +52,4 @@ def create_scheduler() -> AsyncIOScheduler:
         max_instances=1,
         coalesce=True,
     )
-    if s.review_poll_enabled:
-        scheduler.add_job(
-            enqueue_review_poll,
-            "interval",
-            minutes=s.review_poll_interval_minutes,
-            id="review_poll",
-            max_instances=1,
-            coalesce=True,
-        )
     return scheduler

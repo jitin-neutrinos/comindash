@@ -19,7 +19,7 @@ from app.models import (
     RunStatus,
     Topic,
 )
-from app.services.aihub._stage import clear_markers
+from app.services.analysis._stage import clear_markers
 from app.services.database_session import get_run_session  # re-exported helper
 from app.services.discourse import DiscourseClient, as_utc
 

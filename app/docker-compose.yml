@@ -39,9 +39,10 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request as u; u.urlopen('http://localhost:8000/api/health').read()\""]
-      interval: 30s
+      interval: 300s
       timeout: 10s
       retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   worker:
@@ -67,7 +68,8 @@ services:
     ports:
       - "127.0.0.1:8082:80"
     networks:
-      - app_default
+      app_default:
+        ipv4_address: 172.22.0.6
     depends_on:
       - backend
     restart: unless-stopped
@@ -89,6 +91,8 @@ services:
 
   prometheus:
     image: prom/prometheus:v2.45.3
+    networks:
+      - app_default
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus

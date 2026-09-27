@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from app.models import Priority, Sentiment
-from app.services.aihub.extraction import stub_ner
-from app.services.aihub.priority import stub_priority
-from app.services.aihub.sentiment import stub_sentiment
+from app.services.analysis.extraction import stub_ner
+from app.services.analysis.priority import stub_priority
+from app.services.analysis.sentiment import stub_sentiment
 from tests.corpus import POST_BODIES
 
 

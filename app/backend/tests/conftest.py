@@ -16,22 +16,14 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-# --- force stub mode + deterministic gate token -----------------------------
-for _var in (
-    "AIHUB_TOKEN_NER",
-    "AIHUB_TOKEN_PRIORITY",
-    "AIHUB_TOKEN_SENTIMENT",
-    "AIHUB_ASSISTANT_TOKEN",
-    "AIHUB_NER_DEPLOYMENT_ID",
-    "AIHUB_PRIORITY_DEPLOYMENT_ID",
-    "AIHUB_SENTIMENT_DEPLOYMENT_ID",
-    "AIHUB_ASSISTANT_ID",
-    "AIHUB_KNOWLEDGE_SOURCE_IDS",
-    "DISCOURSE_API_KEY",
-):
-    os.environ[_var] = ""
+# --- force deterministic gate token + keyless Discourse mode ----------------
+os.environ["DISCOURSE_API_KEY"] = ""
 os.environ["INGEST_TOKEN"] = "test-ingest-token"
 os.environ["SCHEDULER_ENABLED"] = "false"
+# Tests assert stub-mode behaviour: point the analysis sidecar at a dead port
+# so analyse_texts always takes the stub fallback regardless of a locally
+# running sidecar (SIDECAR_URL is read at import time by _stage).
+os.environ["ANALYSIS_SIDECAR_URL"] = "http://127.0.0.1:1"
 
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402

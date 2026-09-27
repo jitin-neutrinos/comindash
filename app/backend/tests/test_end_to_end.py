@@ -15,14 +15,14 @@ from app.models import (
     SentimentResult,
 )
 from app.services.aggregator import run_aggregation
-from app.services.aihub.assistant import run_assistant_cycle
+from app.services.analysis.assistant import run_assistant_cycle
 from app.services.ingestion import run_ingest
 from app.services.discourse import DiscourseClient
 from sqlalchemy import func, select
 from tests.conftest import INGEST_TOKEN
 
 BASE = "https://forum.test"
-NOW = datetime(2026, 9, 9, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime.now(timezone.utc) - timedelta(hours=3)
 
 
 def _mock_forum() -> None:

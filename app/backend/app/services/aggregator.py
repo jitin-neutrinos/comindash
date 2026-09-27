@@ -21,10 +21,9 @@ from app.models import (
     Topic,
     PipelineRun,
 )
-from app.services.aihub.extraction import run_extraction
-from app.services.aihub.priority import run_priority
-from app.services.aihub.review import run_review_poll
-from app.services.aihub.sentiment import run_sentiment
+from app.services.analysis.extraction import run_extraction
+from app.services.analysis.priority import run_priority
+from app.services.analysis.sentiment import run_sentiment
 from app.services.database_session import get_run_session
 from app.services.discourse import as_utc
 
@@ -187,7 +186,6 @@ async def run_aggregation(
         extraction_stats = await run_extraction(session, run_id=run.id)
         priority_stats = await run_priority(session, run_id=run.id)
         sentiment_stats = await run_sentiment(session, run_id=run.id)
-        review_stats = await run_review_poll(session, run_id=run.id)
         rollups = await topic_priority_rollups(session)
         daily = await daily_aggregates(session, days=7)
 
@@ -196,7 +194,6 @@ async def run_aggregation(
             "extraction": extraction_stats,
             "priority": priority_stats,
             "sentiment": sentiment_stats,
-            "review": review_stats,
             "topics_rolled_up": len(rollups),
             "top_topics": rollups[:5],
             "daily": {k: len(v) for k, v in daily.items()},
