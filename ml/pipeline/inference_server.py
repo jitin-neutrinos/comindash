@@ -51,7 +51,42 @@ SENTIMENT_Q = {
         "neg": "The writer expresses frustration, a fault report, or an unresolved problem -- something is not working and the sentence does not resolve it.",
     },
 }
-GLINER_LABELS = ["person", "product", "email"]
+# Domain vocabulary: Neutrinos products and names only (verified from docs MCP + user's directive 2026-09-27).
+# All terms backed by docs publications (list_publications verified live) or user's explicit instruction.
+# Per GLiNER2 docs (github/fastino-ai/GLiNER2): descriptions improve matching accuracy for domain labels.
+GLINER_LABELS = [
+    {"label": "alpha", "description": "Neutrinos Alpha rules/triggers platform product"},
+    {"label": "trinity", "description": "Neutrinos Trinity platform component"},
+    {"label": "pulse", "description": "Neutrinos Pulse releases and triggers publication"},
+    {"label": "reels", "description": "Neutrinos Reels Engine integration component"},
+    {"label": "reels_engine", "description": "Neutrinos Reels Engine (Reels platform) product"},
+    {"label": "workbench", "description": "Neutrinos Workbench developer interface"},
+    {"label": "ssd", "description": "Neutrinos Server Side Service Designer (SSD) component"},
+    {"label": "csd", "description": "Neutrinos Client Services Designer (CSD) component"},
+    {"label": "ai_hub", "description": "Neutrinos AI Hub framework and SDK"},
+    {"label": "studio", "description": "Neutrinos Studio widget/app builder"},
+    {"label": "modelr", "description": "Neutrinos Modelr model-building component"},
+    {"label": "hypha", "description": "Neutrinos Hypha platform component"},
+    {"label": "identity_server", "description": "Neutrinos Identity Server"},
+    {"label": "plugins_builder", "description": "Neutrinos Plugins Builder"},
+    {"label": "components", "description": "Neutrinos platform Components module"},
+    {"label": "data_fabric", "description": "Neutrinos Data Fabric"},
+    {"label": "flow_designer", "description": "Neutrinos Flow Designer"},
+    {"label": "app_builder", "description": "Neutrinos App Builder"},
+    {"label": "srm_platform", "description": "Neutrinos SRM Platform"},
+    {"label": "art_api", "description": "Neutrinos ART API"},
+    # Person names used in posts (user directive: "all names we need to extract") — kept, no suppression.
+    {"label": "person", "description": "Person or individual names mentioned in posts and evidence"},
+    # Email addresses (verified by regex backstop; real email extraction, not @mentions).
+    {"label": "email", "description": "Email addresses (verified by regex)"},
+]
+# Note: product is kept in the vocabulary (as domain terms above); the generic "product" label is removed
+# to avoid false positive generic flags (IDS/BPM/SSD flagged wrongly in audit — PRODUCT F1 72%).
+# All target product names are now explicit vocabulary terms.
+
+# For basic predict_entities, pass the label list only (GLiNER supports simple string array or dict array with description).
+# The dict form (label + description) improves domain accuracy per GLiNER2 docs.
+GLINER_LABEL_ARRAY = [l["label"] for l in GLINER_LABELS]
 
 # Measured 2026-09-27 (docs/model-audit-2026-09-27.md): GLiNER's zero-shot EMAIL
 # label mostly fires on bare @mentions, not real addresses (41% F1). A regex
@@ -103,7 +138,7 @@ def extract(texts: list[str]) -> list[list[dict]]:
     with MODELS_LOCK:
         for t in texts:
             text = t or " "
-            ents = MODELS["gliner"].predict_entities(text, GLINER_LABELS, threshold=0.5)
+            ents = MODELS["gliner"].predict_entities(text, GLINER_LABEL_ARRAY, threshold=0.75)
             results: list[dict] = []
             seen_spans: set[tuple[int, int]] = set()
             for e in ents:
@@ -136,6 +171,35 @@ def extract(texts: list[str]) -> list[list[dict]]:
                         "confidence": 0.95,
                     }
                 )
+            results.sort(key=lambda r: r["start_pos"])
+            # C: co-occurrence pairs — connect person + domain product when they appear together (verified 2026-09-27).
+            person_spans = [(r["start_pos"], r["end_pos"], r["entity_text"], r["entity_label"]) for r in results if r["entity_label"] == "person"]
+            domain_spans = [(r["start_pos"], r["end_pos"], r["entity_text"], r["entity_label"]) for r in results if r["entity_label"] not in ("email", "person")]
+            co_occurrences: list[dict] = []
+            for p_start, p_end, p_text, p_label in person_spans:
+                for d_start, d_end, d_text, d_label in domain_spans:
+                    # co-occurring if spans overlap or are within 80 chars in same text
+                    if max(p_start, d_start) - min(p_end, d_end) < 80:
+                        co_occurrences.append({
+                            "entity_text": f"{p_text} + {d_text}",
+                            "entity_label": "co_occurrence",
+                            "start_pos": min(p_start, d_start),
+                            "end_pos": max(p_end, d_end),
+                            "confidence": 0.85,
+                            "person_text": p_text,
+                            "person_label": p_label,
+                            "domain_text": d_text,
+                            "domain_label": d_label,
+                        })
+            # Deduplicate co_occurrences by (person_text+domain_text, start_pos)
+            seen_co: set = set()
+            unique_co: list[dict] = []
+            for co in co_occurrences:
+                co_key = (co["person_text"], co["domain_text"], co["start_pos"])
+                if co_key not in seen_co:
+                    seen_co.add(co_key)
+                    unique_co.append(co)
+            results.extend(unique_co)
             results.sort(key=lambda r: r["start_pos"])
             out.append(results)
     return out
