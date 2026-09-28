@@ -3,14 +3,25 @@
 
 One process, host-run (not containerised: models live in ~/.cache/huggingface
 and the fine-tune in ml/laya/checkpoints). The backend containers call this
-over 127.0.0.1:8101 — no torch inside docker, no GPU wiring in compose.
+over 172.22.0.1:8101 — no torch inside docker, no GPU wiring in compose.
+
+GPU economy (production, 2026-09-28):
+  The service is systemd SOCKET-ACTIVATED (comindash-sidecar.socket owns the
+  listening port). Nothing holds the GPU while no analysis is due: the process
+  self-exits after IDLE_UNLOAD_S without requests, releasing ALL VRAM (process
+  exit — not torch offload; Laya's TileLang fast path captures CUDA graphs,
+  which makes in-process .cpu()/.cuda() swapping unsafe). The next TCP
+  connection re-spawns the service through the socket unit (~10-15s cold
+  start), and backend callers retry through that window.
 
 Endpoints:
-  GET  /health        -> {"status":"ok","laya":true,"gliner":true}
-  POST /classify      -> {"texts": [..]} -> per-text priority+sentiment
-  POST /extract       -> {"texts": [..]} -> per-text entity list w/ char offsets
+  GET  /health   -> {"status":"ok","laya":true,"gliner":true,"warm":bool,...}
+  GET  /stats    -> runtime counters for the admin command centre
+  POST /classify -> {"texts":[..]} -> per-text priority+sentiment
+  POST /extract  -> {"texts":[..]} -> per-text entity list w/ char offsets
 
 Run:  ml/laya/.venv/bin/python ml/pipeline/inference_server.py
+      (or `systemctl --user start comindash-sidecar.socket` — recommended)
 """
 
 from __future__ import annotations
@@ -18,6 +29,8 @@ from __future__ import annotations
 import logging
 import os
 import threading
+import time
+import socket
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
@@ -76,11 +89,13 @@ GLINER_LABELS = [
     {"label": "csd", "description": "Neutrinos Client Services Designer (CSD) component"},
     {"label": "ai_hub", "description": "Neutrinos AI Hub framework and SDK"},
     {"label": "studio", "description": "Neutrinos Studio widget/app builder"},
-    {"label": "modelr", "description": "Neutrinos Modelr model-building component"},
     {"label": "hypha", "description": "Neutrinos Hypha platform component"},
     {"label": "identity_server", "description": "Neutrinos Identity Server"},
     {"label": "plugins_builder", "description": "Neutrinos Plugins Builder"},
-    {"label": "components", "description": "Neutrinos platform Components module"},
+    # "modelr" and "components" removed 2026-09-28 per user directive: real
+    # posts use "model"/"Model"/"component"/"Component" as plain English
+    # words (data model, UI component), not references to the Neutrinos
+    # Modelr or Components products -- pure noise, zero signal.
     {"label": "data_fabric", "description": "Neutrinos Data Fabric"},
     {"label": "flow_designer", "description": "Neutrinos Flow Designer"},
     {"label": "app_builder", "description": "Neutrinos App Builder"},
@@ -107,6 +122,65 @@ _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 
 MODELS_LOCK = threading.Lock()
 MODELS: dict = {}
+
+# ---------------------------------------------------------------------------
+# GPU-economy runtime state
+# ---------------------------------------------------------------------------
+START_TS = time.time()
+LAST_USE_TS = time.time()          # touched on every inference request
+IN_FLIGHT = 0                      # requests currently executing
+IN_FLIGHT_LOCK = threading.Lock()
+STATS_LOCK = threading.Lock()
+STATS = {
+    "requests_total": 0,
+    "requests_failed": 0,
+    "texts_classified": 0,
+    "texts_extracted": 0,
+    "rejected_saturation": 0,
+    "cold_starts": 1,  # this boot is one
+}
+
+DEFAULT_IDLE_UNLOAD_S = float(os.environ.get("SIDECAR_IDLE_UNLOAD_S", "900"))
+IDLE_CHECK_S = 30.0
+# Cap on concurrently-executing requests. Inference itself is serialised by
+# MODELS_LOCK; the semaphore stops a request burst from piling up a thread per
+# connection while they queue on that lock (unbounded ThreadingHTTPServer
+# threads = the thread-pileup OOM vector). Over cap -> 503, callers retry.
+MAX_CONCURRENT = int(os.environ.get("SIDECAR_MAX_CONCURRENT", "4"))
+
+# Runtime-tunable config, fetched from the backend so the Settings page can
+# change idle behaviour WITHOUT a sidecar restart. Falls back to env/default
+# whenever the backend is unreachable — the sidecar never depends on it.
+RUNTIME_CFG = {"idle_unload_s": DEFAULT_IDLE_UNLOAD_S, "idle_unload_enabled": True}
+BACKEND_CFG_URL = os.environ.get(
+    "SIDECAR_CFG_URL", "http://127.0.0.1:8080/api/admin/ops/config"
+)
+
+
+def _fetch_runtime_cfg() -> None:
+    """Best-effort pull of runtime settings from the backend (2s timeout)."""
+    global RUNTIME_CFG
+    try:
+        import urllib.request
+        with urllib.request.urlopen(BACKEND_CFG_URL, timeout=2) as r:
+            data = json.loads(r.read())
+        cfg = {
+            "idle_unload_s": max(60.0, float(data.get("idle_unload_s", RUNTIME_CFG["idle_unload_s"]))),
+            "idle_unload_enabled": bool(data.get("idle_unload_enabled", True)),
+        }
+        if cfg != RUNTIME_CFG:
+            log.info("runtime cfg from backend: %s", cfg)
+        RUNTIME_CFG = cfg
+    except Exception:  # noqa: BLE001 — config fetch must never break serving
+        pass
+
+
+def _gpu_vram_mb() -> int | None:
+    try:
+        import torch
+        return int(torch.cuda.memory_allocated() // (1024 * 1024)) if torch.cuda.is_available() else None
+    except Exception:  # noqa: BLE001
+        return None
 
 
 def load_models() -> None:
@@ -217,6 +291,10 @@ def extract(texts: list[str]) -> list[list[dict]]:
 
 
 class Handler(BaseHTTPRequestHandler):
+    # Bounded concurrency: acquire before running a request; 503 when the
+    # pipeline is saturated rather than growing an unbounded thread pile.
+    CONCURRENCY = threading.BoundedSemaphore(MAX_CONCURRENT)
+
     def log_message(self, fmt, *args):  # quiet default request logging
         pass
 
@@ -228,13 +306,44 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    # -- observability -----------------------------------------------------
+    def _stats(self) -> dict:
+        with STATS_LOCK, IN_FLIGHT_LOCK:
+            s = dict(STATS)
+            in_flight = IN_FLIGHT
+        return {
+            **s,
+            "in_flight": in_flight,
+            "warm": "laya" in MODELS and "gliner" in MODELS,
+            "idle_unload_s": RUNTIME_CFG["idle_unload_s"],
+            "idle_unload_enabled": RUNTIME_CFG["idle_unload_enabled"],
+            "seconds_since_last_use": round(time.time() - LAST_USE_TS, 1),
+            "uptime_s": round(time.time() - START_TS, 1),
+            "gpu_vram_allocated_mb": _gpu_vram_mb(),
+            "max_concurrent": MAX_CONCURRENT,
+        }
+
     def do_GET(self):  # noqa: N802
         if self.path == "/health":
-            self._send(200, {"status": "ok", "laya": "laya" in MODELS, "gliner": "gliner" in MODELS})
+            self._send(200, {
+                "status": "ok",
+                "laya": "laya" in MODELS,
+                "gliner": "gliner" in MODELS,
+                "warm": "laya" in MODELS and "gliner" in MODELS,
+                "socket_activated": os.environ.get("LISTEN_FDS") is not None,
+            })
+        elif self.path == "/stats":
+            self._send(200, self._stats())
         else:
             self._send(404, {"error": "not found"})
 
     def do_POST(self):  # noqa: N802
+        global LAST_USE_TS
+        if not self.CONCURRENCY.acquire(blocking=False):
+            with STATS_LOCK:
+                STATS["rejected_saturation"] += 1
+            self._send(503, {"error": "sidecar saturated, retry shortly"})
+            return
         try:
             n = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(n) or b"{}")
@@ -245,24 +354,92 @@ class Handler(BaseHTTPRequestHandler):
             if len(texts) > 500:
                 self._send(422, {"error": "max 500 texts per call"})
                 return
+            LAST_USE_TS = time.time()
             if self.path == "/classify":
-                self._send(200, {"results": classify(texts)})
+                results = classify(texts)
+                with STATS_LOCK:
+                    STATS["requests_total"] += 1
+                    STATS["texts_classified"] += len(texts)
+                self._send(200, {"results": results})
             elif self.path == "/extract":
-                self._send(200, {"results": extract(texts)})
+                results = extract(texts)
+                with STATS_LOCK:
+                    STATS["requests_total"] += 1
+                    STATS["texts_extracted"] += len(texts)
+                self._send(200, {"results": results})
             else:
                 self._send(404, {"error": "not found"})
         except Exception as exc:  # noqa: BLE001
+            with STATS_LOCK:
+                STATS["requests_failed"] += 1
             log.exception("request failed")
             self._send(500, {"error": str(exc)[:300]})
+        finally:
+            LAST_USE_TS = time.time()
+            self.CONCURRENCY.release()
+
+
+def _idle_watchdog(srv: ThreadingHTTPServer) -> None:
+    """Exit the process after RUNTIME_CFG idle window with zero requests in
+    flight. Exit code 0 => systemd (Restart=on-failure) leaves it stopped and
+    the socket unit re-spawns it on the next connection. This is the GPU
+    offload: process death releases every CUDA graph, context and cached
+    allocation — nvidia-smi goes back to baseline.
+    """
+    while True:
+        time.sleep(IDLE_CHECK_S)
+        _fetch_runtime_cfg()
+        with IN_FLIGHT_LOCK:
+            busy = IN_FLIGHT > 0
+        if busy or not RUNTIME_CFG["idle_unload_enabled"]:
+            continue
+        idle_for = time.time() - LAST_USE_TS
+        if idle_for >= RUNTIME_CFG["idle_unload_s"]:
+            log.info(
+                "idle %.0fs >= %.0fs — exiting to release GPU (socket unit will revive on demand)",
+                idle_for, RUNTIME_CFG["idle_unload_s"],
+            )
+            srv.shutdown()  # stop accepting; serve_forever returns
+            os._exit(0)     # hard exit: threads may be parked on keep-alives
+        # nearing the window: proactive empty_cache so other GPU tenants see
+        # the caching allocator's free pages before we exit
+        if idle_for >= RUNTIME_CFG["idle_unload_s"] * 0.8:
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:  # noqa: BLE001
+                pass
+
+
+def make_server() -> ThreadingHTTPServer:
+    host = os.environ.get("SIDECAR_HOST", "127.0.0.1")
+    port = int(os.environ.get("SIDECAR_PORT", "8101"))
+    # systemd socket activation: the socket unit owns the bind; fd 3 is the
+    # listener. Keeps manual `python inference_server.py` working when absent.
+    if os.environ.get("LISTEN_PID") == str(os.getpid()) and os.environ.get("LISTEN_FDS"):
+        srv = ThreadingHTTPServer((host, port), Handler, bind_and_activate=False)
+        srv.socket.close()
+        srv.socket = socket.socket(fileno=3)  # adopt systemd's listener
+        srv.server_address = srv.socket.getsockname()
+        log.info("socket-activated via systemd (fd 3, %s)", srv.server_address)
+    else:
+        srv = ThreadingHTTPServer((host, port), Handler)
+        log.info("bound directly (no socket activation) on %s:%s", host, port)
+    return srv
 
 
 def main() -> None:
     load_models()
-    host = os.environ.get("SIDECAR_HOST", "127.0.0.1")
-    port = int(os.environ.get("SIDECAR_PORT", "8101"))
-    srv = ThreadingHTTPServer((host, port), Handler)
-    log.info("inference sidecar listening on %s:%s", host, port)
-    srv.serve_forever()
+    srv = make_server()
+    t = threading.Thread(target=_idle_watchdog, args=(srv,), daemon=True, name="idle-watchdog")
+    t.start()
+    log.info("inference sidecar listening (idle exit after %ss, concurrency cap %d)",
+             RUNTIME_CFG["idle_unload_s"], MAX_CONCURRENT)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
 
 if __name__ == "__main__":
