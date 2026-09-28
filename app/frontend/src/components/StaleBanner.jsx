@@ -38,7 +38,7 @@ export default function StaleBanner() {
         backgroundColor: alpha(colors.salmon, 0.08),
       }}
     >
-      <p className="flex items-center gap-2.5 font-normal text-black">
+      <p className="flex items-center gap-2.5 font-normal text-ink">
         <span
           ref={dot}
           aria-hidden="true"

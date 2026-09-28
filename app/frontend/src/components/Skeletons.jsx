@@ -16,11 +16,11 @@ export function MetricSkeleton() {
       style={{
         borderRadius: 18,
         padding: 4,
-        background: `linear-gradient(160deg, ${alpha(colors.blue, 0.13)}, ${alpha(colors.midnight, 0.045)} 62%)`,
-        boxShadow: `0 1px 2px ${alpha(colors.midnight, 0.04)}, 0 12px 32px -18px ${alpha(colors.midnight, 0.14)}`,
+        background: `linear-gradient(160deg, ${alpha(colors.blue, 0.13)}, ${alpha(colors.black, 0.045)} 62%)`,
+        boxShadow: `0 1px 2px ${alpha(colors.black, 0.04)}, 0 12px 32px -18px ${alpha(colors.black, 0.14)}`,
       }}
     >
-      <div className="rounded-xl bg-white p-6">
+      <div className="rounded-xl bg-surface p-6">
         <Skeleton className="h-3 w-24" />
         <Skeleton className="mt-3 h-10 w-20" />
         <Skeleton className="mt-3 h-2.5 w-16" />
@@ -48,7 +48,7 @@ export function DonutSkeleton({ height = 280 }) {
     <div role="status" aria-label="Loading chart" style={{ height }} className="flex w-full items-center justify-center">
       <div className="relative" style={{ height: Math.round(height * 0.6), width: Math.round(height * 0.6) }}>
         <div className="shimmer absolute inset-0 rounded-full" />
-        <div className="absolute inset-6 rounded-full bg-white" />
+        <div className="absolute inset-6 rounded-full bg-surface" />
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2">
           <Skeleton className="h-6 w-14" />
           <Skeleton className="h-2.5 w-10" />
@@ -110,7 +110,7 @@ export function GraphSkeleton({ height = 620 }) {
 export function InsightRowSkeleton({ variant = 0, compact = false }) {
   const w = ['w-3/4', 'w-2/3', 'w-4/5', 'w-1/2'][variant % 4]
   return (
-    <div aria-hidden="true" className="rounded-xl border border-line bg-white p-5 sm:p-6">
+    <div aria-hidden="true" className="rounded-xl border border-line bg-surface p-5 sm:p-6">
       <div className="flex flex-wrap items-center gap-2">
         <Skeleton className="h-5 w-16 rounded-pill" />
         <Skeleton className="h-5 w-14 rounded-pill" />
@@ -172,7 +172,7 @@ export function DetailSkeleton() {
         </div>
         <Skeleton className="h-9 w-3/4 max-w-2xl" />
       </div>
-      <div className="space-y-3 rounded-xl border border-line bg-white p-6">
+      <div className="space-y-3 rounded-xl border border-line bg-surface p-6">
         <Skeleton className="h-4 w-2/3" />
         <Skeleton className="h-3 w-full" />
         <Skeleton className="h-3 w-5/6" />
@@ -188,7 +188,7 @@ export function ListSkeleton({ rows = 3 }) {
   return (
     <div className="space-y-4" role="status" aria-label="Loading list">
       {Array.from({ length: rows }).map((_, i) => (
-        <div key={i} className="space-y-3 rounded-xl border border-line bg-white p-6">
+        <div key={i} className="space-y-3 rounded-xl border border-line bg-surface p-6">
           <Skeleton className="h-4 w-2/3" />
           <Skeleton className="h-3 w-full" />
           <Skeleton className="h-3 w-5/6" />

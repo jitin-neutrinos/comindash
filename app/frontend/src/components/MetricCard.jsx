@@ -34,15 +34,15 @@ export default function MetricCard({
       style={{
         borderRadius: 18,
         padding: 4,
-        background: `linear-gradient(160deg, ${alpha(accent, 0.13)}, ${alpha(colors.midnight, 0.045)} 62%)`,
-        boxShadow: `0 1px 2px ${alpha(colors.midnight, 0.04)}, 0 12px 32px -18px ${alpha(colors.midnight, 0.14)}`,
+        background: `linear-gradient(160deg, ${alpha(accent, 0.13)}, ${alpha(colors.black, 0.045)} 62%)`,
+        boxShadow: `0 1px 2px ${alpha(colors.black, 0.04)}, 0 12px 32px -18px ${alpha(colors.black, 0.14)}`,
       }}
     >
       <div
-        className="relative flex h-full flex-col bg-white p-5"
+        className="relative flex h-full flex-col bg-surface p-5"
         style={{
           borderRadius: 14,
-          boxShadow: `inset 0 1px 0 ${alpha(colors.white, 0.9)}, inset 0 0 0 1px ${alpha(colors.midnight, 0.055)}`,
+          boxShadow: `inset 0 1px 0 ${alpha(colors.white, 0.9)}, inset 0 0 0 1px ${alpha(colors.black, 0.055)}`,
         }}
       >
         <div className="relative flex items-start justify-between gap-2">

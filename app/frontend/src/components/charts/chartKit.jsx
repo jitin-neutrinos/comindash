@@ -11,7 +11,7 @@ export function useChartAnimation() {
 export function BrandTooltip({ active, payload, label, formatter }) {
   if (!active || !payload?.length) return null
   return (
-    <div className="rounded-xl border border-line bg-white px-3 py-2 text-small shadow-md">
+    <div className="rounded-xl border border-line bg-surface px-3 py-2 text-small shadow-md">
       {label != null && label !== '' && <p className="mb-1 font-medium">{label}</p>}
       <ul>
         {payload.map((p) => (
@@ -44,8 +44,10 @@ export function ChartEmpty({ height = 200 }) {
   )
 }
 
-/** Common axis props so every chart shares one voice (12px muted text). */
-export const axisProps = {
+/** Common axis props so every chart shares one voice (12px muted text).
+ * A FUNCTION, not a const: chart.axis is a live binding that changes with
+ * the theme mode, and a module-level const would freeze the light value. */
+export const axisProps = () => ({
   tick: { fontSize: 12, fill: chart.axis },
   tickLine: false,
-}
+})

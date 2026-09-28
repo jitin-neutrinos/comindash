@@ -5,20 +5,28 @@
 // cannot be obtained (the API container cannot see Docker), the card says so
 // rather than guessing a green light.
 import { getSystem, relTime, useApi } from '../../api'
-import { getOpsOverview } from '../../api'
 import { alpha, colors } from '../../theme'
 import { usePulseAll } from '../../motion'
 import { Bezel, Eyebrow, SectionHead } from '../Surface'
 import { MetricSkeleton, RowsSkeleton } from '../Skeletons'
-import { STATE_TONE, StatusDot, Stat, pct, seenLabel } from '../review/ReviewKit'
+import { STATE_TONE, StatusDot, pct, seenLabel } from '../review/ReviewKit'
 import { useRef } from 'react'
 
 const OVERALL_COPY = {
-  ok: 'All services responding.',
-  idle: 'All services responding; queue is empty.',
-  warn: 'Running, with one or more degraded services.',
-  down: 'A service the pipeline depends on is not responding.',
+  ok: 'All services are up and answering.',
+  idle: 'Everything is up. The work queue is empty, so the system is resting.',
+  warn: 'Everything is running, but at least one part is underperforming. Details below.',
+  down: 'Something the dashboard depends on is not responding. Details below.',
   unknown: 'Status could not be determined.',
+}
+
+// One honest sentence per state, rendered as text — not a badge.
+const SERVICE_STATE_COPY = {
+  ok: 'Working normally.',
+  idle: 'Resting. Nothing to do right now.',
+  warn: 'Running, but with a problem. Details below.',
+  down: 'Not responding.',
+  unknown: 'Status unknown.',
 }
 
 function ServiceCard({ svc }) {
@@ -31,47 +39,19 @@ function ServiceCard({ svc }) {
         boxShadow: `inset 0 0 0 1px ${alpha(tone, 0.16)}`,
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <StatusDot state={svc.state} pulse />
-            <p className="truncate text-small font-semibold">{svc.label}</p>
-          </div>
-          <p className="mt-1 text-caption font-light leading-snug text-muted">{svc.role}</p>
-        </div>
-        <span
-          className="shrink-0 rounded-pill px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-          style={{ backgroundColor: alpha(tone, 0.16), color: tone }}
-        >
-          {svc.state}
-        </span>
+      <div className="flex items-center gap-2">
+        <StatusDot state={svc.state} pulse />
+        <p className="truncate text-small font-semibold">{svc.label}</p>
       </div>
-
-      {svc.models.length > 0 && (
-        <ul className="mt-2.5 flex flex-wrap gap-x-3 gap-y-1">
-          {svc.models.map((m) => (
-            <li key={m.name} className="flex items-center gap-1.5 text-caption font-light">
-              <StatusDot state={m.loaded ? 'ok' : 'down'} size={6} />
-              <span className="capitalize">{m.name}</span>
-              <span className="text-muted">{m.loaded ? 'loaded' : 'not loaded'}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {svc.lastActivity && (
-        <p className="mt-2 text-caption font-light text-muted">
-          Last activity {seenLabel(svc.lastActivity)}
-        </p>
-      )}
-      {svc.reason && <p className="mt-2 text-caption font-light leading-snug">{svc.reason}</p>}
+      <p className="mt-1.5 text-caption font-light leading-snug text-muted">{svc.role}</p>
+      <p className="mt-2 text-caption font-light leading-snug">
+        <span className="font-medium" style={{ color: tone }}>
+          {svc.state === 'ok' || svc.state === 'idle' ? '' : `${svc.state.charAt(0).toUpperCase()}${svc.state.slice(1)}. `}
+        </span>
+        {svc.reason ?? SERVICE_STATE_COPY[svc.state] ?? SERVICE_STATE_COPY.unknown}
+      </p>
       {svc.note && (
-        <p className="mt-2 text-caption font-light leading-snug text-muted">{svc.note}</p>
-      )}
-      {svc.container && (
-        <code className="mt-2 inline-block rounded-sm bg-mist px-1.5 py-0.5 text-caption">
-          {svc.container}
-        </code>
+        <p className="mt-1.5 text-caption font-light leading-snug text-muted">{svc.note}</p>
       )}
     </div>
   )
@@ -88,56 +68,34 @@ function StageCard({ stage }) {
         boxShadow: `inset 0 0 0 1px ${alpha(tone, 0.14)}`,
       }}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <StatusDot state={stage.state} pulse />
-            <p className="text-small font-semibold">{stage.label}</p>
-          </div>
-          <p className="mt-1 text-caption font-light leading-snug text-muted">
-            {stage.description}
-          </p>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <StatusDot state={stage.state} pulse />
+          <p className="text-small font-semibold">{stage.label}</p>
         </div>
-        <div className="shrink-0 text-right">
-          <p
-            className="text-h4 font-semibold leading-none tabular-nums"
-            style={{ color: stage.successRate24h === null ? undefined : tone }}
-          >
-            {stage.successRate24h === null ? '—' : pct(stage.successRate24h, 0)}
-          </p>
-          <p className="mt-0.5 text-caption font-light text-muted">
-            {total ? `${total} runs / 24h` : 'no runs in 24h'}
-          </p>
-        </div>
+        <p
+          className="text-h4 font-semibold leading-none tabular-nums"
+          style={{ color: stage.successRate24h === null ? undefined : tone }}
+          title="Share of runs that finished cleanly, over the last 24 hours"
+        >
+          {stage.successRate24h === null ? '—' : pct(stage.successRate24h, 0)}
+        </p>
       </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-3">
-        <Stat label="Done 24h" value={stage.runs24h.done} />
-        <Stat
-          label="Failed 24h"
-          value={stage.runs24h.failed}
-          tone={stage.runs24h.failed ? colors.salmon : undefined}
-        />
-        <Stat
-          label="All-time"
-          value={stage.successRateAll === null ? '—' : pct(stage.successRateAll, 0)}
-        />
-      </div>
-
-      {stage.lastStats.length > 0 && (
-        <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1">
-          {stage.lastStats.slice(0, 6).map((s) => (
-            <li key={s.key} className="text-caption font-light">
-              <span className="font-medium">{s.key.replace(/_/g, ' ')}</span>:{' '}
-              <span className="tabular-nums">{s.value}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-
-      <p className="mt-3 text-caption font-light text-muted">
-        Last run {stage.lastStatus || 'unknown'}
-        {stage.lastFinishedAt ? ` · finished ${relTime(stage.lastFinishedAt)}` : ''}
+      <p className="mt-1.5 text-caption font-light leading-snug text-muted">
+        {stage.description}
+      </p>
+      <p className="mt-2.5 text-caption font-light leading-snug">
+        {stage.lastFinishedAt ? (
+          <>Last finished {relTime(stage.lastFinishedAt)}</>
+        ) : (
+          'Has not run yet.'
+        )}
+        {total > 0 && (
+          <span className="text-muted">
+            {' '}· {stage.runs24h.done} finished
+            {stage.runs24h.failed > 0 ? `, ${stage.runs24h.failed} failed` : ''} today
+          </span>
+        )}
       </p>
       {stage.lastError && (
         <p
@@ -153,7 +111,6 @@ function StageCard({ stage }) {
 
 export default function CommandCentre() {
   const { data, loading, error } = useApi(getSystem, { intervalMs: 30000 })
-  const { data: ops } = useApi(getOpsOverview, { intervalMs: 30000 })
   const root = useRef(null)
   usePulseAll(root, '[data-pulse]', [data, loading])
 
@@ -200,28 +157,14 @@ export default function CommandCentre() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-3 gap-6">
-            <Stat label="Queue pending" value={data.queue.pending} />
-            <Stat
-              label="Running"
-              value={data.queue.running}
-              tone={data.queue.running ? colors.blue : undefined}
-            />
-            <Stat
-              label="Dead-letter"
-              value={data.queue.dead}
-              tone={data.queue.dead ? colors.salmon : undefined}
-              hint={data.queue.dead ? 'exhausted retries' : undefined}
-            />
-          </div>
         </div>
       </Bezel>
+
 
       {/* --- services ------------------------------------------------------ */}
       <section data-anim="row">
         <SectionHead
-          eyebrow="Containers & services"
-          title="Moving parts"
+          title="The moving parts"
           action={
             <p className="text-caption font-light text-muted">
               Refreshes every 30s · read {data.generatedAt ? relTime(data.generatedAt) : '—'}
@@ -237,7 +180,7 @@ export default function CommandCentre() {
 
       {/* --- worker -------------------------------------------------------- */}
       <section data-anim="row">
-        <SectionHead eyebrow="Workers" title="Background worker" />
+        <SectionHead title="The workhorse, right now" />
         <Bezel accent={STATE_TONE[data.queue.workerState] ?? colors.blue} radius={18} pad={4}>
           <div className="flex flex-wrap items-center justify-between gap-5 p-5">
             <div className="flex items-center gap-3">
@@ -249,110 +192,43 @@ export default function CommandCentre() {
                 </p>
               </div>
             </div>
-            <p className="text-caption font-light text-muted">
-              Last claim {seenLabel(data.queue.workerLastActivity)}
-            </p>
-          </div>
-          {data.queue.byKind.length > 0 && (
-            <div className="border-t px-5 py-4" style={{ borderColor: alpha(colors.midnight, 0.07) }}>
-              <p className="mb-2 text-caption font-medium uppercase tracking-wider text-muted">
-                Queue by job kind
-              </p>
-              <ul className="flex flex-wrap gap-x-5 gap-y-1.5">
-                {data.queue.byKind.map((k) => (
-                  <li key={k.kind} className="text-caption font-light">
-                    <span className="font-medium capitalize">{k.kind}</span>:{' '}
-                    {k.counts.map((c, i) => (
-                      <span key={c.status}>
-                        {i > 0 && ', '}
-                        <span className="tabular-nums">{c.count}</span> {c.status}
-                      </span>
-                    ))}
-                  </li>
-                ))}
-              </ul>
+            <div className="flex flex-wrap gap-x-8 gap-y-2">
+              <div>
+                <p className="text-h4 font-semibold leading-none tabular-nums">{data.queue.pending}</p>
+                <p className="mt-1 text-caption font-light text-muted">waiting in line</p>
+              </div>
+              <div>
+                <p className="text-h4 font-semibold leading-none tabular-nums">{data.queue.running}</p>
+                <p className="mt-1 text-caption font-light text-muted">being worked on</p>
+              </div>
+              <div>
+                <p
+                  className="text-h4 font-semibold leading-none tabular-nums"
+                  style={{ color: data.queue.dead ? colors.salmon : undefined }}
+                >
+                  {data.queue.dead}
+                </p>
+                <p className="mt-1 text-caption font-light text-muted">gave up after retries</p>
+              </div>
+              <div>
+                <p className="text-h4 font-semibold leading-none tabular-nums">{data.counts.posts24h.toLocaleString()}</p>
+                <p className="mt-1 text-caption font-light text-muted">new posts today</p>
+              </div>
             </div>
-          )}
+          </div>
         </Bezel>
       </section>
-
-      {/* --- GPU + storage ops strip (production hardening 2026-09-28) ------ */}
-      {ops && (
-        <section data-anim="row">
-          <SectionHead eyebrow="Operations" title="GPU · storage · throughput" />
-          <Bezel accent={colors.blue} radius={18} pad={4}>
-            <div className="grid grid-cols-2 gap-6 p-5 sm:grid-cols-3 lg:grid-cols-6">
-              <Stat
-                label="GPU sidecar"
-                value={ops.sidecar.reachable ? (ops.sidecar.warm ? 'loaded' : 'cold') : 'off'}
-                tone={ops.sidecar.reachable ? colors.blue : colors.salmon}
-                hint={ops.sidecar.reachable ? `${ops.sidecar.vramMb ?? '—'} MB VRAM` : 'spawns on next job'}
-              />
-              <Stat
-                label="Idle unload"
-                value={ops.sidecar.idleUnloadEnabled ? `${Math.round(ops.sidecar.idleUnloadS / 60)} min` : 'off'}
-                hint={ops.sidecar.idleUnloadEnabled ? 'frees GPU when idle' : 'models stay resident'}
-              />
-              <Stat
-                label="Sidecar calls"
-                value={ops.sidecar.requestsTotal.toLocaleString()}
-                hint={`${ops.sidecar.textsClassified.toLocaleString()} classified · ${ops.sidecar.textsExtracted.toLocaleString()} extracted`}
-              />
-              <Stat
-                label="Storage"
-                value={`${ops.storage.usedPct}%`}
-                tone={ops.storage.state === 'critical' ? colors.salmon : ops.storage.state === 'warn' ? colors.iris : undefined}
-                hint={`${ops.storage.freeGb} GB free of ${ops.storage.totalGb} GB`}
-              />
-              <Stat
-                label="Jobs 24h"
-                value={ops.prom24h.jobsDone ?? '—'}
-                tone={ops.prom24h.jobsFailed ? colors.salmon : undefined}
-                hint={`${ops.prom24h.jobsFailed ?? 0} failed · ${ops.prom24h.jobRetries ?? 0} retries`}
-              />
-              <Stat
-                label="Dead jobs"
-                value={ops.queue.dead}
-                tone={ops.queue.dead ? colors.salmon : undefined}
-                hint={ops.deadJobs.length ? `latest: ${ops.deadJobs[0].kind}` : 'none'}
-              />
-            </div>
-          </Bezel>
-        </section>
-      )}
 
       {/* --- pipeline ------------------------------------------------------ */}
       <section data-anim="row">
         <SectionHead
-          eyebrow="Pipeline"
-          title="Ingestion → prediction → extraction → analysis"
+          title="How a post becomes an insight"
         />
         <div className="grid gap-4 lg:grid-cols-3">
           {data.stages.map((s) => (
             <StageCard key={s.key} stage={s} />
           ))}
         </div>
-      </section>
-
-      {/* --- data volumes --------------------------------------------------- */}
-      <section data-anim="row">
-        <SectionHead eyebrow="Data" title="What is in the system" />
-        <Bezel accent={colors.blue} radius={18} pad={4}>
-          <div className="grid grid-cols-2 gap-6 p-5 sm:grid-cols-4 lg:grid-cols-7">
-            <Stat label="Posts" value={data.counts.posts.toLocaleString()} />
-            <Stat label="Topics" value={data.counts.topics.toLocaleString()} />
-            <Stat label="Priority" value={data.counts.priorityResults.toLocaleString()} />
-            <Stat label="Sentiment" value={data.counts.sentimentResults.toLocaleString()} />
-            <Stat label="Extractions" value={data.counts.extractions.toLocaleString()} />
-            <Stat label="Insights" value={data.counts.insights.toLocaleString()} />
-            <Stat
-              label="New 24h"
-              value={data.counts.posts24h.toLocaleString()}
-              tone={data.counts.posts24h ? colors.blue : undefined}
-              hint="posts ingested"
-            />
-          </div>
-        </Bezel>
       </section>
     </div>
   )

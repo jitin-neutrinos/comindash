@@ -13,7 +13,7 @@ import { useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getInsight, getInsightClaims, useApi, formatDate } from '../api'
 import { insightPath } from '../slug'
-import { alpha, colors, semantics } from '../theme'
+import { alpha, blueFill, colors, semantics } from '../theme'
 import { usePageChoreo } from '../motion'
 import FrameCard from '../components/FrameCard'
 import MetricInfo from '../components/MetricInfo'
@@ -88,7 +88,7 @@ export default function InsightDetail() {
             <Link
               to="/insights"
               className="mt-5 inline-flex items-center gap-2 rounded-pill px-4 py-2 text-small font-medium text-white"
-              style={{ backgroundColor: colors.blue }}
+              style={{ backgroundColor: blueFill }}
             >
               Browse all insights
             </Link>

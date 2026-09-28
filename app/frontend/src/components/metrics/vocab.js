@@ -58,11 +58,11 @@ export const SERIES_KEYS = {
 /** The key whose RISE is bad news — what the drift callout leads with. */
 export const WATCH_KEY = { sentiment: 'neg', priority: 'high' }
 
-export const CONFIDENCE_COLOR = {
+export const confidenceColor = () => ({
   high: colors.mint,
   medium: colors.blue,
   low: colors.salmon,
-}
+})
 
 export const pct = (v, digits = 0) =>
   v === null || v === undefined || Number.isNaN(Number(v))

@@ -84,6 +84,25 @@
   /* --- ELEVATION (used sparingly; the system prefers flat + open space) -- */
   --neu-shadow-sm: 0 1px 2px rgba(0, 5, 61, 0.06);
   --neu-shadow-md: 0 8px 24px rgba(0, 5, 61, 0.10);
+
+  /* --- APP THEME CHANNELS (dark mode, 2026-09-28) --------------------------
+     Runtime-flippable RGB triplets consumed by theme.js → Tailwind
+     (rgb(var(--t-*) / <alpha-value>)). Light values below; `.dark` on
+     <html> re-points them (see the block at the bottom of this file).
+     Same navy family as Midnight Blue — no new hues (blue-only policy). */
+  --t-white: 255 255 255;      /* literal white — never flips */
+  --t-surface: 255 255 255;    /* card/plate background */
+  --t-mist: 245 245 245;       /* page background */
+  --t-ink: 0 0 0;              /* primary text */
+  --t-muted: 74 74 74;         /* secondary text (#4A4A4A) */
+  --t-line: 230 234 240;       /* card border (#E6EAF0) */
+  --t-hairline: 238 241 245;   /* chart gridlines (#EEF1F5) */
+  --t-celeste: 77 148 255;     /* #4D94FF */
+  --t-mint: 0 61 153;          /* #003D99 */
+  --t-salmon: 0 5 61;          /* #00053D (ramp dark end — flips brightest) */
+  --t-iris: 0 82 204;          /* #0052CC */
+  --t-gray200: 228 228 228;    /* #E4E4E4 */
+  --t-gray400: 74 74 74;       /* #4A4A4A */
 }
 
 /* ---------------------------------------------------------------------------
@@ -117,6 +136,27 @@
   src: url("./fonts/Poppins-SemiBold.ttf") format("truetype"); font-display: swap; }
 @font-face { font-family: "Poppins"; font-weight: 600; font-style: italic;
   src: url("./fonts/Poppins-SemiBoldItalic.ttf") format("truetype"); font-display: swap; }
+
+/* ---------------------------------------------------------------------------
+   DARK MODE CHANNELS — `.dark` on <html> (set by theme.js setMode() and the
+   pre-paint boot script in index.html). Same navy family, ramp inverted:
+   the alert end becomes the brightest step for legibility on dark surfaces.
+   All pairs verified ≥ 4.5:1 by scripts/darkmode.check.mjs.
+   --------------------------------------------------------------------------- */
+html.dark {
+  --t-surface: 13 20 64;       /* #0D1440 — cards/plates on #060A28 page */
+  --t-mist: 6 10 40;           /* #060A28 — page background */
+  --t-ink: 234 238 255;        /* #EAEEFF — primary text (~13:1 on surface) */
+  --t-muted: 159 171 221;      /* #9FABDD — secondary text (~7:1) */
+  --t-line: 35 44 94;          /* #232C5E — card borders */
+  --t-hairline: 27 36 80;      /* #1B2450 — gridlines */
+  --t-celeste: 102 163 255;    /* #66A3FF — brightened tint */
+  --t-mint: 153 194 255;       /* #99C2FF */
+  --t-salmon: 201 212 255;     /* #C9D4FF — ramp alert end, brightest on dark */
+  --t-iris: 127 168 255;       /* #7FA8FF */
+  --t-gray200: 42 50 100;      /* #2A3264 */
+  --t-gray400: 143 160 216;    /* #8FA0D8 */
+}
 
 /* ---------------------------------------------------------------------------
    BASE ELEMENT STYLES + REUSABLE PRIMITIVES

@@ -1,93 +1,128 @@
 import { Fragment, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
-import logoSymbol from '../brand/logo/neutrinos-symbol-white.png'
+import logoSymbolWhite from '../brand/logo/neutrinos-symbol-white.png'
+import logoSymbolColor from '../brand/logo/neutrinos-symbol-color.png'
 import { NAV } from './Header'
 import { gsap, prefersReducedMotion } from '../motion'
+import { useMode } from '../theme'
+import ThemeToggle from './ThemeToggle'
 
-const stroke = {
-  stroke: 'currentColor',
-  strokeWidth: 1.5,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-}
-
-/* 16px line icons — one per section; stroke follows currentColor. Rendered
- * at 20px in the rail (see the [&>svg] size override on the wrapper span). */
+/* 16px FILLED icons — one per section (2026-09-28: user preference, filled
+ * over outline in BOTH modes). Fill follows currentColor; secondary shapes
+ * carry opacity so each glyph still reads as one mark. Rendered at 20px via
+ * the [&>svg] size override on the wrapper span. */
 const ICONS = {
   '/': (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-      <rect x="2.25" y="2.25" width="4.75" height="4.75" rx="1.2" {...stroke} />
-      <rect x="9" y="2.25" width="4.75" height="4.75" rx="1.2" {...stroke} />
-      <rect x="2.25" y="9" width="4.75" height="4.75" rx="1.2" {...stroke} />
-      <rect x="9" y="9" width="4.75" height="4.75" rx="1.2" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <rect x="2.2" y="2.2" width="5.1" height="5.1" rx="1.5" fill="currentColor" />
+      <rect x="8.7" y="2.2" width="5.1" height="5.1" rx="1.5" fill="currentColor" opacity="0.5" />
+      <rect x="2.2" y="8.7" width="5.1" height="5.1" rx="1.5" fill="currentColor" opacity="0.5" />
+      <rect x="8.7" y="8.7" width="5.1" height="5.1" rx="1.5" fill="currentColor" />
     </svg>
   ),
   '/metrics': (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-      <path d="M2.5 13.5h11" {...stroke} />
-      <path d="m3.5 10 3-3.5 2.5 2 3.5-4" {...stroke} />
-      <path d="M9.7 4.5h3v3" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <rect x="2.4" y="8.6" width="2.7" height="5" rx="1" fill="currentColor" opacity="0.5" />
+      <rect x="6.65" y="5.6" width="2.7" height="8" rx="1" fill="currentColor" />
+      <rect x="10.9" y="2.4" width="2.7" height="11.2" rx="1" fill="currentColor" opacity="0.5" />
     </svg>
   ),
   '/insights': (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-      <path d="M8 2.75 14.25 13.25H1.75Z" {...stroke} />
-      <path d="M8 6.75v2.75" {...stroke} />
-      <circle cx="8" cy="11.6" r="0.85" fill="currentColor" stroke="none" />
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <mask id="nav-insights-m">
+        <rect width="16" height="16" fill="white" />
+        <rect x="7.25" y="6.1" width="1.5" height="3.6" rx="0.75" fill="black" />
+        <circle cx="8" cy="11.85" r="0.85" fill="black" />
+      </mask>
+      <path
+        d="M8 2.3 14.15 13.4H1.85Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinejoin="round"
+        mask="url(#nav-insights-m)"
+      />
     </svg>
   ),
   '/relationships': (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-      <circle cx="3.75" cy="4" r="2" {...stroke} />
-      <circle cx="12.25" cy="6.5" r="2" {...stroke} />
-      <circle cx="6.25" cy="12" r="2" {...stroke} />
-      <path d="m5.4 5 4.8 1.1M4.9 5.9l.9 4.2M11 8.3 8 10.5" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <path
+        d="M3.9 3.9 12.1 6.3M3.9 3.9 6.4 12.1M12.1 6.3 6.4 12.1"
+        stroke="currentColor"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        opacity="0.55"
+      />
+      <circle cx="3.9" cy="3.9" r="2.1" fill="currentColor" />
+      <circle cx="12.1" cy="6.3" r="1.75" fill="currentColor" opacity="0.6" />
+      <circle cx="6.4" cy="12.1" r="1.9" fill="currentColor" opacity="0.6" />
     </svg>
   ),
   '/explorer': (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-      <rect x="2.25" y="3.25" width="11.5" height="9.5" rx="1.5" {...stroke} />
-      <path d="M2.25 6.5h11.5M6 6.5v6.25" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <rect x="2.2" y="3" width="11.6" height="9.8" rx="1.6" fill="currentColor" opacity="0.25" />
+      <rect x="2.2" y="3" width="11.6" height="2.9" rx="1.4" fill="currentColor" />
+      <rect x="4.1" y="7.5" width="4.6" height="1.4" rx="0.7" fill="currentColor" opacity="0.85" />
+      <rect x="4.1" y="10" width="2.8" height="1.4" rx="0.7" fill="currentColor" opacity="0.5" />
     </svg>
   ),
   '/admin': (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-      <path d="M8 2a6 6 0 100 12 6 6 0 000-12zM8 5v6M5 8h6" {...stroke} />
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+      <mask id="nav-admin-m">
+        <rect width="16" height="16" fill="white" />
+        <rect x="7.15" y="4.6" width="1.7" height="6.8" rx="0.85" fill="black" />
+        <rect x="4.6" y="7.15" width="6.8" height="1.7" rx="0.85" fill="black" />
+      </mask>
+      <circle cx="8" cy="8" r="5.9" fill="currentColor" mask="url(#nav-admin-m)" />
     </svg>
   ),
 }
 
-/* Settings gear — same minimal line style, kept separate from ICONS since it
- * sits below the main section list, not in it. */
+/* Settings gear — filled: solid wheel with a knocked-out hub, teeth drawn
+ * as round-capped strokes inside the same mask group. */
 const GEAR_ICON = (
-  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
-    <circle cx="8" cy="8" r="4.6" {...stroke} />
-    <circle cx="8" cy="8" r="1.8" {...stroke} />
-    <line x1="12.6" y1="8" x2="14.3" y2="8" {...stroke} />
-    <line x1="11.253" y1="11.253" x2="12.455" y2="12.455" {...stroke} />
-    <line x1="8" y1="12.6" x2="8" y2="14.3" {...stroke} />
-    <line x1="4.747" y1="11.253" x2="3.545" y2="12.455" {...stroke} />
-    <line x1="3.4" y1="8" x2="1.7" y2="8" {...stroke} />
-    <line x1="4.747" y1="4.747" x2="3.545" y2="3.545" {...stroke} />
-    <line x1="8" y1="3.4" x2="8" y2="1.7" {...stroke} />
-    <line x1="11.253" y1="4.747" x2="12.455" y2="3.545" {...stroke} />
+  <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true" className="shrink-0">
+    <mask id="nav-gear-m">
+      <rect width="16" height="16" fill="white" />
+      <circle cx="8" cy="8" r="2.1" fill="black" />
+    </mask>
+    <g mask="url(#nav-gear-m)">
+      <circle cx="8" cy="8" r="4.6" fill="currentColor" />
+      <g stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+        <line x1="8" y1="1.7" x2="8" y2="3.9" />
+        <line x1="8" y1="12.1" x2="8" y2="14.3" />
+        <line x1="1.7" y1="8" x2="3.9" y2="8" />
+        <line x1="12.1" y1="8" x2="14.3" y2="8" />
+        <line x1="3.5" y1="3.5" x2="5.1" y2="5.1" />
+        <line x1="10.9" y1="10.9" x2="12.5" y2="12.5" />
+        <line x1="3.5" y1="12.5" x2="5.1" y2="10.9" />
+        <line x1="10.9" y1="5.1" x2="12.5" y2="3.5" />
+      </g>
+    </g>
   </svg>
 )
 
 /**
- * Fixed-width (80px) full-height Midnight Blue icon rail — logo mark on top,
- * then one tile per section: icon above a single-line (truncated) label
- * below it. This is the only sidebar state there is; it never widens into a
- * labelled 240px rail. On viewports under 1024px it still slides on/off
- * canvas as a drawer (same narrow width), which is a responsiveness need,
- * not the old expand/collapse feature — that toggle has been removed.
+ * Fixed-width (80px) full-height icon rail — logo mark on top, then one tile
+ * per section: icon above a single-line (truncated) label below it. This is
+ * the only sidebar state there is; it never widens into a labelled 240px
+ * rail. On viewports under 1024px it slides on/off canvas as a drawer (same
+ * narrow width), closed by the backdrop, Escape, or navigating — no in-panel
+ * close button (removed 2026-09-28 by user request).
+ *
+ * Rail surface follows the mode (2026-09-28): Midnight Blue with white marks
+ * in light mode; WHITE with Neutrinos-blue marks + colour logo in dark mode.
+ * Colors are explicit literals (not theme tokens) because the rail is its
+ * own surface — e.g. `text-blue` would get lifted to #4D94FF by the dark
+ * `.text-blue` override, which fails contrast on a white rail.
  */
 export default function Sidebar({ open, onClose }) {
+  const m = useMode()
+  const dark = m === 'dark'
   const panel = useRef(null)
   const backdrop = useRef(null)
   const pill = useRef(null)
   const nav = useRef(null)
-  const closeBtn = useRef(null)
   const first = useRef(true)
   const firstPill = useRef(true)
   const location = useLocation()
@@ -129,9 +164,10 @@ export default function Sidebar({ open, onClose }) {
     }
   }, [open])
 
-  /* Celeste pill indicator slides to the active nav item (aria-current
+  /* Blue pill indicator slides to the active nav item (aria-current
    * marks the active NavLink; measuring the anchor keeps the pill at the
-   * link's full box, whatever shape that tile is). */
+   * link's full box, whatever shape that tile is). Re-measures on mode
+   * change too, in case tile metrics shift with the surface swap. */
   useLayoutEffect(() => {
     const container = nav.current
     const pillEl = pill.current
@@ -151,7 +187,7 @@ export default function Sidebar({ open, onClose }) {
     if (firstPill.current || prefersReducedMotion()) gsap.set(pillEl, place)
     else gsap.to(pillEl, { ...place, duration: 0.2, ease: 'power3.out' })
     firstPill.current = false
-  }, [location.pathname])
+  }, [location.pathname, m])
 
   /* Escape closes the drawer and returns focus to the header toggle. */
   useEffect(() => {
@@ -165,16 +201,32 @@ export default function Sidebar({ open, onClose }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  const link = ({ isActive }) =>
-    `relative z-10 mx-1 flex w-16 flex-col items-center gap-1 rounded-[10px] px-1 py-2.5 text-center transition-colors ${
-      isActive ? 'text-white drop-shadow-[0_0_8px_rgba(0,102,255,0.55)]' : 'text-white/60 hover:bg-white/5 hover:text-white'
-    }`
+  /* Tile styling per mode. Active/ink pairs chosen for ≥4.5:1 on the rail:
+   * light rail — white on midnight; dark-mode rail — #0066FF / #0052CC on
+   * white (4.83:1 / 6.6:1). */
+  const tile = (isActive) => {
+    const base =
+      'flex w-16 flex-col items-center gap-1 rounded-[10px] px-1 py-2.5 text-center transition-colors'
+    if (dark) {
+      return isActive
+        ? `${base} text-[#0066FF] drop-shadow-[0_0_8px_rgba(0,102,255,0.4)]`
+        : `${base} text-[#0052CC] hover:bg-[#0066FF]/[0.06] hover:text-[#0066FF]`
+    }
+    return isActive
+      ? `${base} text-white drop-shadow-[0_0_8px_rgba(0,102,255,0.55)]`
+      : `${base} text-white/60 hover:bg-white/5 hover:text-white`
+  }
+  const link = ({ isActive }) => `relative z-10 mx-1 ${tile(isActive)}`
 
   // One hairline between tiles (not a border on each tile, which stacked two
   // lines at every seam) — a plain sibling `div`, so it never sits inside the
-  // active-item pill's box and can't be clipped by it. Celeste at 35% reads
-  // clearly against Midnight Blue; the 15% tried earlier was too faint.
-  const Divider = () => <div aria-hidden="true" className="h-px w-16 shrink-0 bg-celeste/35" />
+  // active-item pill's box and can't be clipped by it.
+  const Divider = () => (
+    <div
+      aria-hidden="true"
+      className={`h-px w-16 shrink-0 ${dark ? 'bg-[#0066FF]/20' : 'bg-celeste/35'}`}
+    />
+  )
 
   return (
     <>
@@ -188,36 +240,30 @@ export default function Sidebar({ open, onClose }) {
       <aside
         ref={panel}
         aria-label="Sections"
-        className="fixed inset-y-0 left-0 z-50 flex w-20 shrink-0 flex-col bg-midnight px-2 pb-6"
+        className={`fixed inset-y-0 left-0 z-50 flex w-20 shrink-0 flex-col px-2 pb-6 ${
+          dark ? 'border-r border-[#E6EAF0] bg-white' : 'bg-midnight'
+        }`}
       >
-        {/* Brand mark — symbol only (the narrow rail is the only state now). */}
+        {/* Brand mark — symbol only (the narrow rail is the only state).
+         * Colour symbol on the white dark-mode rail, white on midnight. */}
         <Link
           to="/"
           onClick={onClose}
           aria-label="Neutrinos — go to overview"
           className="flex items-center justify-center pb-4 pt-4"
         >
-          <img src={logoSymbol} alt="Neutrinos" className="h-[50px] w-[50px]" />
+          <img
+            src={dark ? logoSymbolColor : logoSymbolWhite}
+            alt="Neutrinos"
+            className="h-[50px] w-[50px]"
+          />
         </Link>
-        {/* Drawer close (mobile only — on desktop the rail is persistent) */}
-        <div className="flex items-center justify-center pb-1 lg:hidden">
-          <button
-            ref={closeBtn}
-            type="button"
-            onClick={onClose}
-            aria-label="Close navigation"
-            className="rounded-pill p-2 text-white/80 transition-all duration-150 hover:bg-white/10 hover:text-white active:scale-[0.95]"
-          >
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-              <path d="m5 5 10 10M15 5 5 15" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
         <div
           ref={nav}
           className="relative flex flex-1 flex-col items-center gap-1 overflow-y-auto py-4 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
         >
-          {/* Celeste active-item pill (slides between nav items) */}
+          {/* Blue active-item pill (slides between nav items) — translucent
+           * brand blue works on both the midnight and the white rail. */}
           <div
             ref={pill}
             aria-hidden="true"
@@ -235,16 +281,16 @@ export default function Sidebar({ open, onClose }) {
             </Fragment>
           ))}
         </div>
-        <div className="mt-2 flex justify-center border-t border-white/10 pt-2">
+        {/* Theme toggle — directly above Settings; per-mode rail styling. */}
+        <div className={`mt-2 flex justify-center border-t pt-2 ${dark ? 'border-[#0066FF]/15' : 'border-white/10'}`}>
+          <ThemeToggle dark={dark} />
+        </div>
+        <div className={`mt-1 flex justify-center border-t pt-2 ${dark ? 'border-[#0066FF]/15' : 'border-white/10'}`}>
           <NavLink
             to="/settings"
             onClick={onClose}
             title="Settings"
-            className={({ isActive }) =>
-              `flex w-16 flex-col items-center gap-1 rounded-[10px] px-1 py-2.5 text-center transition-colors ${
-                isActive ? 'text-white drop-shadow-[0_0_8px_rgba(0,102,255,0.55)]' : 'text-white/60 hover:bg-white/5 hover:text-white'
-              }`
-            }
+            className={({ isActive }) => tile(isActive)}
           >
             <span className="[&>svg]:h-5 [&>svg]:w-5">{GEAR_ICON}</span>
             <span className="w-full text-[10px] font-medium leading-tight truncate">Settings</span>

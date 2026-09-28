@@ -273,6 +273,24 @@ export const METRIC_INFO = {
     how: 'Security-relevant events only. Routine chatter stays in System logs.',
     fresh: 'Live.',
   },
+  gpuEconomy: {
+    title: 'AI engine power',
+    what: 'How the AI engine sleeps and wakes to save power, and what that means for you.',
+    how: 'The AI rests when nobody is using it and wakes within a few seconds when a job arrives. You can keep it awake all day here if you prefer instant answers.',
+    fresh: 'Applies within half a minute — no restart needed.',
+  },
+  retentionPolicy: {
+    title: 'Data retention',
+    what: 'How long this dashboard keeps its working records before tidying them away.',
+    how: 'Finished housekeeping jobs are cleared after two weeks (capped), and run history is kept for three months. Posts and AI results are never deleted automatically — that stays a human decision.',
+    fresh: 'Runs nightly; the button here runs it on demand.',
+  },
+  alertingPolicy: {
+    title: 'Alerts',
+    what: 'The automatic messages this dashboard sends when something needs attention.',
+    how: 'Failures always raise an alert. Repeated retries and storage warnings are grouped so you are not pinged repeatedly for one problem.',
+    fresh: 'Sends as events happen.',
+  },
 }
 
 /**

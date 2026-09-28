@@ -18,8 +18,8 @@ export const transition = (props = 'all', ms = 420) => `${props} ${ms}ms ${EASE}
 
 /** Ambient elevation — wide, soft and low-opacity. Never a hard dark shadow. */
 export const ambient = {
-  rest: `0 1px 2px ${alpha(colors.midnight, 0.04)}, 0 12px 32px -18px ${alpha(colors.midnight, 0.14)}`,
-  lift: `0 2px 4px ${alpha(colors.midnight, 0.05)}, 0 24px 48px -20px ${alpha(colors.midnight, 0.22)}`,
+  rest: `0 1px 2px ${alpha(colors.black, 0.04)}, 0 12px 32px -18px ${alpha(colors.black, 0.14)}`,
+  lift: `0 2px 4px ${alpha(colors.black, 0.05)}, 0 24px 48px -20px ${alpha(colors.black, 0.22)}`,
 }
 
 /**
@@ -47,7 +47,7 @@ export function Bezel({
       style={{
         borderRadius: radius,
         padding: pad,
-        background: `linear-gradient(160deg, ${alpha(accent, 0.13)}, ${alpha(colors.midnight, 0.045)} 62%)`,
+        background: `linear-gradient(160deg, ${alpha(accent, 0.13)}, ${alpha(colors.black, 0.045)} 62%)`,
         boxShadow: ambient.rest,
         transition: transition('box-shadow, transform'),
         ...style,
@@ -55,10 +55,10 @@ export function Bezel({
       {...rest}
     >
       <div
-        className={`relative h-full overflow-hidden bg-white ${innerClassName}`}
+        className={`relative h-full overflow-hidden bg-surface ${innerClassName}`}
         style={{
           borderRadius: radius - pad,
-          boxShadow: `inset 0 1px 0 ${alpha(colors.white, 0.9)}, inset 0 0 0 1px ${alpha(colors.midnight, 0.055)}`,
+          boxShadow: `inset 0 1px 0 ${alpha(colors.white, 0.9)}, inset 0 0 0 1px ${alpha(colors.black, 0.055)}`,
         }}
       >
         {children}

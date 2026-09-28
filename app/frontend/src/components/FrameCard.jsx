@@ -21,7 +21,7 @@ export default function FrameCard({
 }) {
   return (
     <Tag
-      className={`${lift ? 'card-lift' : ''} rounded-2xl border border-line bg-white py-6 pl-7 pr-6 ${className}`}
+      className={`${lift ? 'card-lift' : ''} rounded-2xl border border-line bg-surface py-6 pl-7 pr-6 ${className}`}
     >
       {(title || action || infoKey) && (
         <header className="mb-5 flex flex-wrap items-center justify-between gap-3">

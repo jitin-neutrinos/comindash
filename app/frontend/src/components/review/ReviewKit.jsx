@@ -9,7 +9,7 @@
 //   * Every number states its basis (holdout rows, window, git SHA) so a reader
 //     can tell a 93% measured on 363 rows from a 93% measured on 12.
 import { useEffect, useRef, useState } from 'react'
-import { alpha, colors, semantics } from '../../theme'
+import { alpha, blueFill, colors, semantics } from '../../theme'
 import { transition } from '../Surface'
 import { formatDate, relTime } from '../../api'
 import { prefersReducedMotion } from '../../motion'
@@ -19,7 +19,7 @@ import { prefersReducedMotion } from '../../motion'
 /** Score → brand-ramp colour. Thresholds are deliberately conservative:
  *  below 0.70 on a 3-class task is barely above chance and must not read green. */
 export function scoreColor(v) {
-  if (v === null || v === undefined) return alpha(colors.midnight, 0.25)
+  if (v === null || v === undefined) return alpha(colors.black, 0.25)
   if (v >= 0.9) return colors.blue
   if (v >= 0.75) return colors.celeste
   if (v >= 0.6) return colors.iris
@@ -33,7 +33,7 @@ export const STAGE_TONE = {
   live: colors.blue,
   candidate: colors.celeste,
   rejected: colors.salmon,
-  superseded: alpha(colors.midnight, 0.4),
+  superseded: alpha(colors.black, 0.4),
   registered: colors.iris,
 }
 
@@ -42,7 +42,7 @@ export const STATE_TONE = {
   idle: colors.celeste,
   warn: colors.iris,
   down: colors.salmon,
-  unknown: alpha(colors.midnight, 0.35),
+  unknown: alpha(colors.black, 0.35),
 }
 
 /* ---- score dial ------------------------------------------------------------ */
@@ -84,7 +84,7 @@ export function ScoreDial({ value, label, caption, size = 132, stroke = 9 }) {
             cy={size / 2}
             r={r}
             fill="none"
-            stroke={alpha(colors.midnight, 0.07)}
+            stroke={alpha(colors.black, 0.07)}
             strokeWidth={stroke}
           />
           {measured && (
@@ -105,7 +105,7 @@ export function ScoreDial({ value, label, caption, size = 132, stroke = 9 }) {
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span
             className="text-h2 font-semibold leading-none tabular-nums tracking-tight"
-            style={{ color: measured ? colors.black : alpha(colors.midnight, 0.4) }}
+            style={{ color: measured ? colors.black : alpha(colors.black, 0.4) }}
           >
             {measured ? pct(value, 1) : '—'}
           </span>
@@ -167,14 +167,14 @@ export function MetricBar({ label, value, support, basis, delay = 0 }) {
         <span className="truncate text-small font-medium">{labelText(label)}</span>
         <span
           className="shrink-0 text-small font-semibold tabular-nums"
-          style={{ color: measured ? color : alpha(colors.midnight, 0.4) }}
+          style={{ color: measured ? color : alpha(colors.black, 0.4) }}
         >
           {measured ? pct(value, 1) : 'not measured'}
         </span>
       </div>
       <div
         className="mt-1.5 h-1.5 w-full overflow-hidden rounded-pill"
-        style={{ backgroundColor: alpha(colors.midnight, 0.06) }}
+        style={{ backgroundColor: alpha(colors.black, 0.06) }}
       >
         <div
           ref={ref}
@@ -203,7 +203,7 @@ export function DistributionRail({ rows, tone }) {
     <div>
       <div
         className="flex h-2.5 w-full overflow-hidden rounded-pill"
-        style={{ backgroundColor: alpha(colors.midnight, 0.06) }}
+        style={{ backgroundColor: alpha(colors.black, 0.06) }}
       >
         {rows.map((r, i) => (
           <div
@@ -329,7 +329,7 @@ export function GitRail({ commits, paths, head }) {
         <span
           aria-hidden="true"
           className="absolute left-[3px] top-2 bottom-2 w-px"
-          style={{ backgroundColor: alpha(colors.midnight, 0.12) }}
+          style={{ backgroundColor: alpha(colors.black, 0.12) }}
         />
         {shown.map((c, i) => {
           const isHead = c.sha === head
@@ -339,7 +339,7 @@ export function GitRail({ commits, paths, head }) {
                 aria-hidden="true"
                 className="absolute -left-5 top-1.5 h-[7px] w-[7px] rounded-full"
                 style={{
-                  backgroundColor: i === 0 ? colors.blue : alpha(colors.midnight, 0.3),
+                  backgroundColor: i === 0 ? blueFill : alpha(colors.black, 0.3),
                   boxShadow: i === 0 ? `0 0 0 3px ${alpha(colors.blue, 0.15)}` : undefined,
                 }}
               />
@@ -353,7 +353,7 @@ export function GitRail({ commits, paths, head }) {
                 {isHead && (
                   <span
                     className="rounded-pill px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider"
-                    style={{ backgroundColor: alpha(colors.celeste, 0.2), color: colors.midnight }}
+                    style={{ backgroundColor: alpha(colors.celeste, 0.2), color: colors.black }}
                   >
                     trained at
                   </span>

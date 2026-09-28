@@ -70,7 +70,7 @@ export default function Admin() {
 
   const tabClass = (active) =>
     `flex items-center gap-2 rounded-pill px-4 py-1.5 text-small font-medium transition-colors ${
-      active ? 'bg-blue text-white' : 'bg-white text-black/70 hover:text-blue'
+      active ? 'bg-blue text-white' : 'bg-surface text-black/70 hover:text-blue'
     }`
 
   return (
@@ -81,9 +81,9 @@ export default function Admin() {
           <MetricInfo metricKey="adminPage" />
         </div>
         <p className="mt-1 max-w-3xl font-light text-muted">
-          Every moving part of this dashboard in one place: container and worker health, the
-          ingestion → prediction → extraction → analysis pipeline, the AI models behind it, and the
-          raw logs and audit trail underneath.
+          The health of everything behind this dashboard in one place: whether each part is up, how
+          work moves from raw forum posts to finished insights, how the AI models are performing,
+          and the logs and audit trail underneath.
         </p>
       </header>
 
@@ -162,7 +162,7 @@ function SystemLogs() {
         <select
           value={service}
           onChange={(e) => setService(e.target.value)}
-          className="rounded-pill border border-line bg-white px-4 py-1.5 text-small font-light focus:border-blue focus:outline-none"
+          className="rounded-pill border border-line bg-surface px-4 py-1.5 text-small font-light focus:border-blue focus:outline-none"
         >
           <option value="">All services</option>
           <option value="backend">Backend API</option>
@@ -171,7 +171,7 @@ function SystemLogs() {
         <select
           value={level}
           onChange={(e) => setLevel(e.target.value)}
-          className="rounded-pill border border-line bg-white px-4 py-1.5 text-small font-light focus:border-blue focus:outline-none"
+          className="rounded-pill border border-line bg-surface px-4 py-1.5 text-small font-light focus:border-blue focus:outline-none"
         >
           <option value="">All levels</option>
           <option value="info">Info</option>
@@ -186,7 +186,7 @@ function SystemLogs() {
             aria-label="Search logs"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-pill border border-line bg-white py-1.5 pl-9 pr-4 text-small font-light focus:border-blue focus:outline-none"
+            className="w-full rounded-pill border border-line bg-surface py-1.5 pl-9 pr-4 text-small font-light focus:border-blue focus:outline-none"
           />
         </div>
         <button
@@ -194,7 +194,7 @@ function SystemLogs() {
           onClick={fetchLogs}
           disabled={loading}
           aria-label="Refresh logs"
-          className="rounded-pill border border-line bg-white p-2 text-muted transition-colors hover:text-blue disabled:opacity-50"
+          className="rounded-pill border border-line bg-surface p-2 text-muted transition-colors hover:text-blue disabled:opacity-50"
         >
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} aria-hidden="true" />
         </button>
@@ -324,8 +324,8 @@ function MetricsDashboard() {
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={series} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
                 <CartesianGrid stroke={chart.grid} vertical={false} />
-                <XAxis dataKey="time" stroke={chart.axis} {...axisProps} />
-                <YAxis stroke={chart.axis} allowDecimals={false} {...axisProps} />
+                <XAxis dataKey="time" stroke={chart.axis} {...axisProps()} />
+                <YAxis stroke={chart.axis} allowDecimals={false} {...axisProps()} />
                 <Tooltip content={<BrandTooltip formatter={(v) => v.toFixed(2)} />} cursor={{ stroke: chart.grid }} />
                 <Line
                   type="monotone"
@@ -360,7 +360,7 @@ function MetricsDashboard() {
           label="Traffic (5m)"
           value={last?.requests ?? 0}
           format={(v) => `${v.toFixed(2)} req/s`}
-          hint="Sum request rate across the API"
+          hint="Requests per second, averaged over 5 minutes"
           infoKey="adminTraffic"
         />
         <MetricCard
@@ -368,7 +368,7 @@ function MetricsDashboard() {
           value={last?.errors ?? 0}
           format={(v) => `${v.toFixed(2)} err/s`}
           accent={colors.salmon}
-          hint="5xx responses"
+          hint="Server failures per second"
           infoKey="adminErrorRate"
         />
       </div>
@@ -437,8 +437,8 @@ function AuditLogs() {
       <div className="mb-4 flex items-start gap-2 rounded-xl bg-mist px-4 py-3 text-small font-light text-muted">
         <AlertCircle size={16} className="mt-0.5 shrink-0 text-blue" aria-hidden="true" />
         <p>
-          Audit logs record security-relevant events (manual pipeline triggers, setting changes, access). Routine
-          operational data lives in System Logs.
+          This is the security trail: who changed a setting, who started a job by hand. Day-to-day
+          activity lives in System logs.
         </p>
       </div>
       {loading && !data ? (

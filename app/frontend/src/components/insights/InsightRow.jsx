@@ -6,7 +6,7 @@
 // A reader scanning only the top line of each row still learns the state of
 // every insight on the page.
 import { useRef } from 'react'
-import { colors, semantics, alpha, shadows } from '../../theme'
+import { colors, semantics, alpha, lines, shadows } from '../../theme'
 import PillTag from '../PillTag'
 import Sparkline from './Sparkline'
 import MomentumChip from './MomentumChip'
@@ -39,9 +39,9 @@ export default function InsightRow({ item, index, selected, onSelect }) {
       type="button"
       onClick={() => onSelect(item)}
       aria-pressed={selected}
-      className="card-lift group w-full rounded-xl border bg-white p-5 text-left transition-colors"
+      className="card-lift group w-full rounded-xl border bg-surface p-5 text-left transition-colors"
       style={{
-        borderColor: selected ? accent : colors.white === '#FFFFFF' ? '#E6EAF0' : '#E6EAF0',
+        borderColor: selected ? accent : lines.card,
         boxShadow: selected ? shadows.md : shadows.rest,
         // Selected rows get a colour-matched wash so the link between the row
         // and the open panel is spatial, not just implied by position.
@@ -98,7 +98,7 @@ export default function InsightRow({ item, index, selected, onSelect }) {
           <Stat
             value={item.scope.highPriorityPosts}
             label="high priority"
-            tone={item.scope.highPriorityPosts > 0 ? colors.midnight : undefined}
+            tone={item.scope.highPriorityPosts > 0 ? colors.black : undefined}
           />
           <Stat value={item.evidenceCount} label="cited" />
         </div>

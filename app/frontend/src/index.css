@@ -21,6 +21,93 @@
   }
 }
 
+/* ============================================================================
+   DARK MODE — scoped overrides for utilities whose Tailwind value must stay
+   literal in one context but flip in another. The `--t-*` channels in
+   tokens.css handle the bulk; these resolve the two conflicted keys:
+
+   * `text-blue` / `hover:text-blue` / `focus:text-blue` / `border-blue`
+     (text/stroke contexts) brighten to #4D94FF on dark cards so links and
+     focused inputs stay ≥ 4.5:1. `bg-blue` fills keep literal #0066FF with
+     white text everywhere (CTA buttons, active pills, toggles).
+   * `bg-black/5` hover tints invert to white tints.
+   `html:not(.dark)` guards keep light mode byte-identical to before.
+   ========================================================================== */
+html.dark {
+  color-scheme: dark;
+}
+/* body.neu (tokens.css) pins --neu-bg = white; out-rank it so the page
+   background (and overscroll rubber-band area) follows the mode. */
+html.dark body.neu,
+html.dark .neu-body {
+  background: rgb(var(--t-mist));
+  color: rgb(var(--t-ink));
+}
+/* Headings/body inherit literal --neu-black from tokens.css base rules —
+   re-point them at the flipping ink channel in dark mode. */
+html.dark .neu h1,
+html.dark .neu h2,
+html.dark .neu h3,
+html.dark .neu h4,
+html.dark .neu h5,
+html.dark .neu h6,
+html.dark .neu-heading,
+html.dark .neu-subheading,
+html.dark .neu p,
+html.dark .neu li,
+html.dark .neu-body {
+  color: rgb(var(--t-ink));
+}
+html.dark .neu-text-muted {
+  color: rgb(var(--t-muted));
+}
+html.dark .text-blue,
+html.dark .hover\:text-blue:hover,
+html.dark .focus\:text-blue:focus,
+html.dark .hover\:border-blue:hover,
+html.dark .focus\:border-blue:focus,
+html.dark .group:hover html.dark .group-hover\:text-blue {
+  color: #4d94ff;
+}
+html.dark .hover\:border-blue:hover,
+html.dark .focus\:border-blue:focus {
+  border-color: #4d94ff;
+}
+html.dark .hover\:bg-black\/5:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+html.dark .hover\:text-midnight:hover {
+  color: #eaeeff; /* hover-darkening becomes hover-brightening on dark */
+}
+html.dark ::selection {
+  background: rgba(0, 102, 255, 0.45);
+}
+
+/* ============================================================================
+   THEME WIPE — View Transitions API circular clip-path reveal, origin at the
+   toggle button (adapted from Magic UI's animated-theme-toggler, MIT).
+   The animation itself is driven from ThemeToggle.jsx via WAAPI on
+   ::view-transition-new(root); these rules disable the default cross-fade so
+   only the clip wipe runs.
+   ========================================================================== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+/* Firefox/legacy: no View Transitions — fall back to a short cross-fade of
+   the CSS variables instead of an instant flip. */
+html.theme-fading,
+html.theme-fading body,
+html.theme-fading body * {
+  transition:
+    background-color 260ms cubic-bezier(0.23, 1, 0.32, 1),
+    border-color 260ms cubic-bezier(0.23, 1, 0.32, 1),
+    color 260ms cubic-bezier(0.23, 1, 0.32, 1),
+    fill 260ms cubic-bezier(0.23, 1, 0.32, 1),
+    stroke 260ms cubic-bezier(0.23, 1, 0.32, 1) !important;
+}
+
 /* Sidebar rail nav — slim, unobtrusive scrollbar on the dark surface. */
 aside nav {
   scrollbar-width: thin;
@@ -32,6 +119,11 @@ aside nav::-webkit-scrollbar {
 aside nav::-webkit-scrollbar-thumb {
   background: color-mix(in srgb, white 18%, transparent);
   border-radius: 999px;
+}
+/* Page scrollbar follows the mode (thin, token-tinted). */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--t-gray400) / 0.5) transparent;
 }
 
 /* Skeleton shimmer — pure CSS (no JS), token-derived tint. */
@@ -53,6 +145,16 @@ aside nav::-webkit-scrollbar-thumb {
   );
   background-size: 200% 100%;
   animation: neu-shimmer 1.6s linear infinite;
+}
+/* Dark: shimmer reads as a light sweep on the dark surface. */
+html.dark .shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(234, 238, 255, 0.03) 25%,
+    rgba(234, 238, 255, 0.08) 50%,
+    rgba(234, 238, 255, 0.03) 75%
+  );
+  background-size: 200% 100%;
 }
 
 /* Premium surface lift (components/Surface.jsx <Bezel lift>). Declared once
@@ -78,6 +180,12 @@ aside nav::-webkit-scrollbar-thumb {
 }
 .prose-brief p:last-child {
   margin-bottom: 0;
+}
+
+/* Theme toggle icon — GSAP rotates/scales the whole svg; keep the mask
+   transform isolated so GSAP's transforms never fight the CSS mask. */
+.theme-toggle-icon {
+  will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {

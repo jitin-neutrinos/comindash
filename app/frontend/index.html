@@ -12,6 +12,23 @@
   </head>
   <body class="neu">
     <div id="root"></div>
+    <script>
+      // Dark-mode pre-paint boot: apply the stored/system theme BEFORE first
+      // paint so there is never a white flash. Runs before the module bundle.
+      (function () {
+        try {
+          var t = localStorage.getItem('comindash-theme')
+          if (t !== 'dark' && t !== 'light') {
+            t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+          }
+          if (t === 'dark') {
+            document.documentElement.classList.add('dark')
+          }
+          document.documentElement.dataset.theme = t
+          document.documentElement.style.colorScheme = t
+        } catch (e) {}
+      })()
+    </script>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>

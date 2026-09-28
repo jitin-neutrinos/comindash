@@ -122,7 +122,7 @@ export default function MetricInfo({ metricKey, accent, className = '' }) {
       id={id}
       role="tooltip"
       // z-[100] on a <body> child: above the sidebar (z-50) and every card.
-      className="fixed z-[100] w-[320px] rounded-xl border border-line bg-white p-4 text-left font-sans shadow-md"
+      className="fixed z-[100] w-[320px] rounded-xl border border-line bg-surface p-4 text-left font-sans shadow-md"
       style={{ top: pos.top, left: pos.left }}
       onMouseEnter={cancelClose}
       onMouseLeave={scheduleClose}

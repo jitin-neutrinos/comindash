@@ -22,8 +22,8 @@ export default function TrendLine({ data, loading, height = 280, name = 'Posts' 
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
           <CartesianGrid stroke={chart.grid} vertical={false} />
-          <XAxis dataKey="date" stroke={chart.axis} {...axisProps} />
-          <YAxis stroke={chart.axis} allowDecimals={false} {...axisProps} />
+          <XAxis dataKey="date" stroke={chart.axis} {...axisProps()} />
+          <YAxis stroke={chart.axis} allowDecimals={false} {...axisProps()} />
           <Tooltip content={<BrandTooltip />} cursor={{ stroke: chart.grid }} />
           <Line
             type="monotone"

@@ -50,7 +50,7 @@ export default function SeverityRing({ data, loading, size = 200, thickness = 18
           cy={size / 2}
           r={r}
           fill="none"
-          stroke={alpha(colors.midnight, 0.06)}
+          stroke={alpha(colors.black, 0.06)}
           strokeWidth={thickness}
         />
         {rows.map((d) => {
@@ -92,7 +92,7 @@ export default function SeverityRing({ data, loading, size = 200, thickness = 18
           y={size / 2 + size * 0.1}
           textAnchor="middle"
           fontSize={size * 0.066}
-          fill={alpha(colors.midnight, 0.6)}
+          fill={alpha(colors.black, 0.6)}
         >
           {centerLabel}
         </text>

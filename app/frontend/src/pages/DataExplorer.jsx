@@ -56,7 +56,7 @@ const authorStub = (hash) => (hash ? `#${String(hash).slice(0, 6)}` : 'unknown')
 const Badge = ({ color, children, title }) => (
   <span
     className="inline-flex shrink-0 items-center gap-1.5 rounded-pill px-2.5 py-0.5 text-caption font-medium"
-    style={{ background: `${color}1f`, color: colors.midnight }}
+    style={{ background: `${color}1f`, color: colors.black }}
     title={title}
   >
     <span className="h-1.5 w-1.5 rounded-full" style={{ background: color }} aria-hidden="true" />
@@ -179,7 +179,7 @@ const Select = ({ value, onChange, options, label }) => (
       value={value}
       onChange={(e) => onChange(e.target.value)}
       aria-label={label}
-      className="rounded-pill border border-line bg-white px-3 py-1.5 text-small font-light text-ink focus:border-blue focus:outline-none"
+      className="rounded-pill border border-line bg-surface px-3 py-1.5 text-small font-light text-ink focus:border-blue focus:outline-none"
     >
       {options.map((o) => (
         <option key={o.key} value={o.key}>
@@ -259,7 +259,7 @@ export default function DataExplorer() {
       <div data-anim="row" className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div
-            className="flex flex-wrap items-center gap-1 rounded-2xl border border-line bg-white p-1 sm:rounded-pill"
+            className="flex flex-wrap items-center gap-1 rounded-2xl border border-line bg-surface p-1 sm:rounded-pill"
             role="tablist"
             aria-label="Dataset"
           >
@@ -281,7 +281,7 @@ export default function DataExplorer() {
 
           <a
             href={`${API_BASE}/export.csv?dataset=${tab}`}
-            className="rounded-pill border border-line bg-white px-4 py-1.5 text-small font-medium text-blue transition-colors hover:bg-mist"
+            className="rounded-pill border border-line bg-surface px-4 py-1.5 text-small font-medium text-blue transition-colors hover:bg-mist"
           >
             Export CSV
           </a>
@@ -302,7 +302,7 @@ export default function DataExplorer() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder={isPosts ? 'Search posts and thread titles' : 'Search topics'}
               aria-label="Search"
-              className="min-w-0 flex-1 rounded-pill border border-line bg-white px-4 py-1.5 text-small font-light focus:border-blue focus:outline-none"
+              className="min-w-0 flex-1 rounded-pill border border-line bg-surface px-4 py-1.5 text-small font-light focus:border-blue focus:outline-none"
             />
             <button
               type="submit"
@@ -358,7 +358,7 @@ export default function DataExplorer() {
 
       <section
         data-anim="chart"
-        className="overflow-hidden rounded-2xl border border-line bg-white"
+        className="overflow-hidden rounded-2xl border border-line bg-surface"
       >
         <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-line px-4 py-3 sm:px-5">
           <h2 className="text-h5 font-semibold">{tabMeta?.label}</h2>

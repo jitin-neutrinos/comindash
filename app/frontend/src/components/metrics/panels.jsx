@@ -7,7 +7,7 @@
 // Animation is GSAP (the project's existing dependency) and honours reduced
 // motion; a bar that cannot animate still renders at its correct width.
 import { useLayoutEffect, useRef } from 'react'
-import { colors, alpha } from '../../theme'
+import { blueFill, colors, alpha } from '../../theme'
 import { gsap, canAnimateEntrance } from '../../motion'
 import { SERIES_KEYS, WATCH_KEY, pct, signedPct, shortDate } from './vocab'
 
@@ -55,7 +55,7 @@ function useStagger(dep) {
 const Panel = ({ title, hint, children, className = '' }) => (
   // min-w-0 lets long thread titles inside truncate instead of forcing the
   // whole grid column wider than the viewport.
-  <section className={`min-w-0 rounded-2xl border border-line bg-white p-5 ${className}`}>
+  <section className={`min-w-0 rounded-2xl border border-line bg-surface p-5 ${className}`}>
     <div className="flex items-baseline justify-between gap-3">
       <h3 className="min-w-0 text-h5 font-semibold">{title}</h3>
       {hint ? <span className="shrink-0 text-caption text-muted">{hint}</span> : null}
@@ -80,7 +80,7 @@ function Bar({ label, value, max, color, caption, delay = 0 }) {
       </div>
       <div
         className="h-1.5 overflow-hidden rounded-pill"
-        style={{ backgroundColor: alpha(colors.midnight, 0.06) }}
+        style={{ backgroundColor: alpha(colors.black, 0.06) }}
       >
         <div ref={fill} className="h-full rounded-pill" style={{ backgroundColor: color }} />
       </div>
@@ -115,7 +115,7 @@ export function DriftPanel({ intel }) {
                   ? colors.salmon
                   : rising || falling
                     ? colors.mint
-                    : alpha(colors.midnight, 0.45)
+                    : alpha(colors.black, 0.45)
               }
             />
           )
@@ -163,7 +163,7 @@ function DriftRow({ k, d, tone }) {
       <div className="space-y-0.5">
         <div
           className="h-1 overflow-hidden rounded-pill"
-          style={{ backgroundColor: alpha(colors.midnight, 0.05) }}
+          style={{ backgroundColor: alpha(colors.black, 0.05) }}
         >
           <div
             className="h-full rounded-pill"
@@ -172,7 +172,7 @@ function DriftRow({ k, d, tone }) {
         </div>
         <div
           className="h-1.5 overflow-hidden rounded-pill"
-          style={{ backgroundColor: alpha(colors.midnight, 0.05) }}
+          style={{ backgroundColor: alpha(colors.black, 0.05) }}
         >
           <div ref={after} className="h-full rounded-pill" style={{ backgroundColor: k.color }} />
         </div>
@@ -280,7 +280,7 @@ export function VolumeShapePanel({ intel }) {
                   data-weekday
                   data-h={`${maxWeekday ? (w.avg / maxWeekday) * 48 : 0}px`}
                   className="w-full rounded-t-sm"
-                  style={{ backgroundColor: alpha(colors.blue, 0.75) }}
+                  style={{ backgroundColor: blueFill }}
                   title={`${w.day}: ${w.avg} posts/day average`}
                 />
                 <span className="text-caption text-muted">{w.day[0]}</span>

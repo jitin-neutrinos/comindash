@@ -5,12 +5,13 @@ import { GraphSkeleton } from '../Skeletons'
 import { ChartEmpty } from './chartKit'
 import { layoutGraph } from './relationshipLayout'
 
-const TYPE_COLORS = {
+/* Live palette getter — colors/graph flip with theme (see theme.js). */
+const typeColors = () => ({
   entity: colors.blue,
   topic: colors.celeste,
   insight: colors.iris,
   focus: colors.salmon,
-}
+})
 
 /**
  * SVG circle-link graph from /api/relationships, and the mini hub-and-spoke
@@ -84,7 +85,7 @@ export default function RelationshipMap({ graph, loading, height = 520, width = 
         ))}
         {placed.map((n) => (
           <g key={n.id} className="rel-node">
-            <circle cx={n.x} cy={n.y} r={n.r} fill={TYPE_COLORS[n.type] ?? colors.blue}>
+            <circle cx={n.x} cy={n.y} r={n.r} fill={typeColors()[n.type] ?? colors.blue}>
               <title>{`${n.type}: ${n.value} (weight ${n.weight})`}</title>
             </circle>
             {n.label && (
@@ -93,7 +94,7 @@ export default function RelationshipMap({ graph, loading, height = 520, width = 
                 y={n.label.y}
                 textAnchor={n.label.anchor}
                 fontSize={fontSize}
-                fill={colors.midnight}
+                fill={colors.black}
                 stroke={colors.white}
                 strokeWidth={3}
                 strokeLinejoin="round"

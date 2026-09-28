@@ -9,9 +9,9 @@
 // motion: no new dependency for a fade.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getMetricBrief } from '../../api'
-import { colors, alpha } from '../../theme'
+import { blueFill, colors, alpha } from '../../theme'
 import { gsap, canAnimateEntrance } from '../../motion'
-import { CONFIDENCE_COLOR, metricMeta } from './vocab'
+import { confidenceColor, metricMeta } from './vocab'
 
 export default function MetricBrief({ metric, days, intel }) {
   const [brief, setBrief] = useState(null)
@@ -70,7 +70,7 @@ export default function MetricBrief({ metric, days, intel }) {
 
   return (
     <section
-      className="rounded-2xl border border-line bg-white p-5"
+      className="rounded-2xl border border-line bg-surface p-5"
       aria-label={`${meta.label} briefing`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -102,7 +102,7 @@ export default function MetricBrief({ metric, days, intel }) {
                 type="button"
                 onClick={() => run(false)}
                 className="mt-3 rounded-lg px-3 py-2 text-small font-medium text-white transition-transform active:scale-[0.98]"
-                style={{ backgroundColor: meta.accent }}
+                style={{ backgroundColor: blueFill }}
               >
                 Brief me on {meta.label.toLowerCase()}
               </button>
@@ -130,8 +130,8 @@ export default function MetricBrief({ metric, days, intel }) {
             <span
               className="rounded-pill px-2 py-0.5 text-caption font-medium"
               style={{
-                backgroundColor: alpha(CONFIDENCE_COLOR[brief.confidence], 0.14),
-                color: CONFIDENCE_COLOR[brief.confidence],
+                backgroundColor: alpha(confidenceColor()[brief.confidence], 0.14),
+                color: confidenceColor()[brief.confidence],
               }}
             >
               {brief.confidence} confidence
@@ -141,8 +141,8 @@ export default function MetricBrief({ metric, days, intel }) {
               <span
                 className="rounded-pill px-2 py-0.5 text-caption"
                 style={{
-                  backgroundColor: alpha(colors.midnight, 0.07),
-                  color: alpha(colors.midnight, 0.65),
+                  backgroundColor: alpha(colors.black, 0.07),
+                  color: alpha(colors.black, 0.65),
                 }}
                 title={brief.reason || 'Generated from measurements only'}
               >
@@ -166,7 +166,7 @@ export default function MetricBrief({ metric, days, intel }) {
                 <li key={i} className="flex gap-2.5">
                   <span
                     className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: meta.accent }}
+                    style={{ backgroundColor: blueFill }}
                     aria-hidden="true"
                   />
                   <span className="min-w-0 text-small">
@@ -199,7 +199,7 @@ export default function MetricBrief({ metric, days, intel }) {
               className="rounded-lg p-2.5 text-caption leading-relaxed"
               style={{
                 backgroundColor: alpha(colors.salmon, 0.08),
-                color: alpha(colors.midnight, 0.8),
+                color: alpha(colors.black, 0.8),
               }}
             >
               <span className="font-medium">Watch out: </span>

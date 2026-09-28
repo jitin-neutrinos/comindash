@@ -9,7 +9,7 @@
 //                          runs, because knowing what was tried and refused is
 //                          how a reviewer trusts what shipped.
 import { useState } from 'react'
-import { alpha, colors, semantics } from '../../theme'
+import { alpha, blueFill, colors, semantics } from '../../theme'
 import { Bezel, Eyebrow, transition } from '../Surface'
 import { formatDate } from '../../api'
 import {
@@ -55,7 +55,7 @@ const TABS = [
 const OUTCOME_TONE = {
   deployed: colors.blue,
   rejected: colors.salmon,
-  superseded: alpha(colors.midnight, 0.4),
+  superseded: alpha(colors.black, 0.4),
   experimental: colors.iris,
 }
 
@@ -67,7 +67,7 @@ function TabButton({ active, onClick, children }) {
       className="relative rounded-pill px-3.5 py-1.5 text-small font-medium"
       style={{
         color: active ? colors.white : colors.black,
-        backgroundColor: active ? colors.blue : alpha(colors.midnight, 0.05),
+        backgroundColor: active ? blueFill : alpha(colors.black, 0.05),
         transition: transition('background-color, color', 260),
       }}
       aria-pressed={active}
@@ -410,7 +410,7 @@ function ProvenancePanel({ model, repoHead }) {
               <code
                 key={l}
                 className="rounded-pill px-2.5 py-1 text-caption"
-                style={{ backgroundColor: alpha(colors.blue, 0.08), color: colors.midnight }}
+                style={{ backgroundColor: alpha(colors.blue, 0.08), color: colors.black }}
               >
                 {l}
               </code>
@@ -479,8 +479,8 @@ export default function ModelCard({ model, windowDays, repoHead }) {
                 <span
                   className="rounded-pill px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
                   style={{
-                    backgroundColor: alpha(colors.midnight, 0.07),
-                    color: alpha(colors.midnight, 0.6),
+                    backgroundColor: alpha(colors.black, 0.07),
+                    color: alpha(colors.black, 0.6),
                   }}
                 >
                   no live output
@@ -502,8 +502,8 @@ export default function ModelCard({ model, windowDays, repoHead }) {
                   <span
                     className="rounded-pill px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
                     style={{
-                      backgroundColor: alpha(colors.midnight, 0.07),
-                      color: alpha(colors.midnight, 0.6),
+                      backgroundColor: alpha(colors.black, 0.07),
+                      color: alpha(colors.black, 0.6),
                     }}
                   >
                     Fine-tuned in-house

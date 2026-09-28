@@ -6,7 +6,7 @@ import FrameCard from '../components/FrameCard'
 import MetricInfo from '../components/MetricInfo'
 import PillTag from '../components/PillTag'
 import { GraphSkeleton } from '../components/Skeletons'
-import KnowledgeGraph, { AdjacencyTable, KIND_STYLE } from '../components/graph/KnowledgeGraph'
+import KnowledgeGraph, { AdjacencyTable, kindStyle } from '../components/graph/KnowledgeGraph'
 import InsightPanel from '../components/graph/InsightPanel'
 
 const DENSITY = [
@@ -71,7 +71,7 @@ export default function Relationships() {
         {/* Density control — a segmented control, not a slider: three named
             states a reader can reason about beat an anonymous number. */}
         <div
-          className="flex rounded-pill border border-line bg-white p-1"
+          className="flex rounded-pill border border-line bg-surface p-1"
           role="radiogroup"
           aria-label="Map detail"
         >
@@ -99,14 +99,14 @@ export default function Relationships() {
       {/* --- measured summary --------------------------------------------- */}
       <div
         data-anim="row"
-        className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-2xl border border-line bg-white px-6 py-4"
+        className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-2xl border border-line bg-surface px-6 py-4"
       >
         <StatBlock value={stats.people ?? 0} label="people" color={colors.midnight} />
         <StatBlock value={stats.products ?? 0} label="products" color={colors.blue} />
         <StatBlock value={stats.coMentionEdges ?? 0} label="measured links" color={alpha(colors.blue, 0.45)} />
         <StatBlock value={stats.assertedEdges ?? 0} label="analyst links" color={colors.celeste} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          {Object.entries(KIND_STYLE).map(([kind, s]) => (
+          {Object.entries(kindStyle()).map(([kind, s]) => (
             <PillTag key={kind} color={s.fill} dot>
               {s.label}
             </PillTag>

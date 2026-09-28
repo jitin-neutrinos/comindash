@@ -2,13 +2,15 @@
 // is a conclusion that is currently getting worse, holding, or fading. Every
 // place that shows a state — chip, filter, legend, panel — reads it from here
 // so the word, the colour and the meaning can never drift apart.
-import { colors, semantics, alpha } from '../../theme'
+import { colors, semantics, alpha, mode } from '../../theme'
 
 /**
  * @typedef {'surging'|'rising'|'steady'|'cooling'|'dormant'|'new'} MomentumState
  */
 
-export const MOMENTUM = {
+/* All palettes are live-bound getters: `colors` is reassigned by setMode(),
+ * so any const built from it would freeze light-mode values into dark mode. */
+export const momentum = () => ({
   surging: {
     label: 'Surging',
     color: colors.salmon,
@@ -42,16 +44,16 @@ export const MOMENTUM = {
   },
   dormant: {
     label: 'Dormant',
-    color: alpha(colors.midnight, 0.45),
+    color: alpha(colors.black, 0.45),
     meaning: 'No posts at all in the recent window. The conclusion may still hold.',
     glyph: '○',
   },
-}
+})
 
 /** Ordered worst-first — the order the UI lists states in. */
 export const MOMENTUM_ORDER = ['surging', 'rising', 'new', 'steady', 'cooling', 'dormant']
 
-export const momentumOf = (state) => MOMENTUM[state] ?? MOMENTUM.dormant
+export const momentumOf = (state) => momentum()[state] ?? momentum().dormant
 
 /**
  * Human-readable delta. Returns '' when there is no baseline to compare
@@ -95,11 +97,11 @@ export const SCOPE_MODE = {
 
 export const scopeModeOf = (mode) => SCOPE_MODE[mode] ?? SCOPE_MODE.none
 
-export const CONFIDENCE = {
+export const confidenceOf = () => ({
   high: colors.mint,
   medium: colors.blue,
   low: colors.salmon,
-}
+})
 
 export const TYPE_LABEL = (t) => String(t ?? '').replace(/_/g, ' ')
 

@@ -152,7 +152,7 @@ export default function MetricsExplorer() {
 
   const pill = (isActive) =>
     `rounded-pill px-4 py-1.5 text-small font-medium transition-colors ${
-      isActive ? 'bg-blue text-white' : 'bg-white text-black/70 hover:text-blue'
+      isActive ? 'bg-blue text-white' : 'bg-surface text-black/70 hover:text-blue'
     }`
 
   const priorityData = useMemo(
@@ -275,7 +275,7 @@ export default function MetricsExplorer() {
       {intelLoading && !intelReady ? (
         <div className="grid gap-6 lg:grid-cols-3">
           {[0, 1, 2].map((i) => (
-            <div key={i} className="rounded-2xl border border-line bg-white p-5">
+            <div key={i} className="rounded-2xl border border-line bg-surface p-5">
               <div className="shimmer h-4 w-1/3 rounded-sm" />
               <div className="shimmer mt-4 h-24 w-full rounded-sm" />
             </div>

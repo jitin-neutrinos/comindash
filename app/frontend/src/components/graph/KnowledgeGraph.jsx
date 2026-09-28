@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { alpha, colors } from '../../theme'
+import { alpha, colors, graph } from '../../theme'
 import { canAnimateEntrance, gsap, prefersReducedMotion } from '../../motion'
 import { buildAdjacency, layout, truncate } from './forceGraph'
 
@@ -12,11 +12,14 @@ const H = 660
  * Midnight (core), and Celeste is the single accent reserved for the
  * analyst-asserted layer — concepts and their edges.
  */
-export const KIND_STYLE = {
+/* Live palette getters (functions, not consts): colors/graph are live
+ * bindings that change with the theme mode — a module-level const would
+ * freeze light-mode fills into dark mode. */
+export const kindStyle = () => ({
   product: { fill: colors.blue, label: 'Product' },
-  person: { fill: colors.midnight, label: 'Person' },
+  person: { fill: graph.personFill, label: 'Person' },
   concept: { fill: colors.celeste, label: 'Analyst concept' },
-}
+})
 
 const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi)
 
@@ -192,7 +195,7 @@ export default function KnowledgeGraph({
         ref={svgRef}
         viewBox={`0 0 ${W} ${H}`}
         className="w-full touch-none select-none rounded-xl"
-        style={{ height, cursor: drag.current ? 'grabbing' : 'grab', background: colors.white }}
+        style={{ height, cursor: drag.current ? 'grabbing' : 'grab', background: graph.canvas }}
         role="application"
         aria-label={`Community knowledge graph: ${placed.nodes.length} entities, ${placed.edges.length} connections. Tab to an entity and press Enter for its briefing.`}
         onPointerDown={onPointerDown}
@@ -205,8 +208,8 @@ export default function KnowledgeGraph({
       >
         <defs>
           <radialGradient id="kg-vignette" cx="50%" cy="45%" r="72%">
-            <stop offset="55%" stopColor={colors.white} stopOpacity="0" />
-            <stop offset="100%" stopColor={colors.midnight} stopOpacity="0.045" />
+            <stop offset="55%" stopColor={graph.canvas} stopOpacity="0" />
+            <stop offset="100%" stopColor={graph.vignette} stopOpacity="0.045" />
           </radialGradient>
         </defs>
         <rect width={W} height={H} fill="url(#kg-vignette)" pointerEvents="none" />
@@ -266,8 +269,8 @@ export default function KnowledgeGraph({
                     y={my - 6}
                     textAnchor="middle"
                     fontSize={10}
-                    fill={colors.midnight}
-                    stroke={colors.white}
+                    fill={graph.label}
+                    stroke={graph.halo}
                     strokeWidth={3.5}
                     strokeLinejoin="round"
                     style={{ paintOrder: 'stroke', pointerEvents: 'none' }}
@@ -283,7 +286,7 @@ export default function KnowledgeGraph({
           {placed.nodes.map((n) => {
             const on = isLit(n.id)
             const selected = selection?.keys?.includes(n.id)
-            const style = KIND_STYLE[n.kind] ?? KIND_STYLE.product
+            const style = kindStyle()[n.kind] ?? kindStyle().product
             return (
               <g
                 key={n.id}
@@ -324,12 +327,12 @@ export default function KnowledgeGraph({
                   cy={n.y}
                   r={n.r}
                   fill={style.fill}
-                  stroke={colors.white}
+                  stroke={graph.halo}
                   strokeWidth={2}
                   style={{ transition: reduced ? 'none' : 'r 160ms cubic-bezier(0.23,1,0.32,1)' }}
                 />
                 {n.kind === 'concept' && (
-                  <circle cx={n.x} cy={n.y} r={Math.max(n.r - 4, 2)} fill={colors.white} opacity={0.55} />
+                  <circle cx={n.x} cy={n.y} r={Math.max(n.r - 4, 2)} fill={graph.halo} opacity={0.55} />
                 )}
                 {showLabels && (on || n.r > 13) && (
                   <text
@@ -338,8 +341,8 @@ export default function KnowledgeGraph({
                     textAnchor="middle"
                     fontSize={n.r > 15 ? 12 : 11}
                     fontWeight={selected || focusNode === n.id ? 600 : 400}
-                    fill={colors.midnight}
-                    stroke={colors.white}
+                    fill={graph.label}
+                    stroke={graph.halo}
                     strokeWidth={3.5}
                     strokeLinejoin="round"
                     style={{ paintOrder: 'stroke', pointerEvents: 'none' }}
@@ -366,7 +369,7 @@ export default function KnowledgeGraph({
             type="button"
             aria-label={label}
             onClick={fn}
-            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-line bg-white text-body text-midnight transition-colors hover:border-blue hover:text-blue"
+            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-line bg-surface text-body text-ink hover:border-blue hover:text-blue transition-colors hover:border-blue hover:text-blue"
           >
             {glyph}
           </button>
@@ -374,7 +377,7 @@ export default function KnowledgeGraph({
       </div>
 
       <div
-        className="pointer-events-none absolute bottom-3 left-3 rounded-pill bg-white/85 px-3 py-1 text-caption font-light text-muted backdrop-blur"
+        className="pointer-events-none absolute bottom-3 left-3 rounded-pill bg-surface/85 px-3 py-1 text-caption font-light text-muted backdrop-blur"
         aria-hidden="true"
       >
         Drag to pan · scroll to zoom · click an entity or a link

@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { getRelationshipBrief } from '../../api'
-import { alpha, colors } from '../../theme'
+import { alpha, blueFill, colors } from '../../theme'
 import { canAnimateEntrance, gsap } from '../../motion'
 import PillTag from '../PillTag'
-import { KIND_STYLE } from './KnowledgeGraph'
+import { kindStyle } from './KnowledgeGraph'
 
-const CONFIDENCE = {
+/* Live palette getter — see theme.js (module-level consts freeze light colors). */
+const confidence = () => ({
   high: { label: 'High confidence', color: colors.mint },
   medium: { label: 'Medium confidence', color: colors.blue },
   low: { label: 'Low confidence', color: colors.salmon },
-}
+})
 
 function Line({ w = '100%' }) {
   return <div className="shimmer h-3 rounded-sm" style={{ width: w }} />
@@ -120,13 +121,13 @@ export default function InsightPanel({ selection, graph, onSelect, onClose }) {
     label: selection.labels?.[k] ?? k,
     kind: k.split(':')[0] === 'person' ? 'person' : k.split(':')[0] === 'product' ? 'product' : 'concept',
   }))
-  const conf = CONFIDENCE[brief?.confidence] ?? CONFIDENCE.medium
+  const conf = confidence()[brief?.confidence] ?? confidence().medium
   const node = selection.node
 
   return (
     <aside
       ref={panel}
-      className="flex h-full flex-col rounded-2xl border border-line bg-white"
+      className="flex h-full flex-col rounded-2xl border border-line bg-surface"
       aria-label="Relationship briefing"
     >
       {/* --- header ------------------------------------------------------- */}
@@ -134,7 +135,7 @@ export default function InsightPanel({ selection, graph, onSelect, onClose }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="text-caption uppercase tracking-[0.12em] text-muted">
-              {isEdge ? 'Connection' : KIND_STYLE[parties[0].kind]?.label ?? 'Entity'}
+              {isEdge ? 'Connection' : kindStyle()[parties[0].kind]?.label ?? 'Entity'}
             </p>
             <h2 className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-h4 font-semibold leading-snug tracking-tight">
               {parties.map((p, i) => (
@@ -147,7 +148,7 @@ export default function InsightPanel({ selection, graph, onSelect, onClose }) {
                   <span
                     aria-hidden="true"
                     className="inline-block h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: KIND_STYLE[p.kind]?.fill ?? colors.blue }}
+                    style={{ backgroundColor: kindStyle()[p.kind]?.fill ?? colors.blue }}
                   />
                   <span className="break-words">{p.label}</span>
                 </span>
@@ -251,7 +252,7 @@ export default function InsightPanel({ selection, graph, onSelect, onClose }) {
                       <span
                         aria-hidden="true"
                         className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full"
-                        style={{ backgroundColor: colors.blue }}
+                        style={{ backgroundColor: blueFill }}
                       />
                       <span>{s}</span>
                     </li>
@@ -286,7 +287,7 @@ export default function InsightPanel({ selection, graph, onSelect, onClose }) {
                         rel="noreferrer"
                         className="block rounded-xl border border-line px-4 py-3 transition-colors hover:border-blue hover:bg-mist"
                       >
-                        <p className="text-small font-medium leading-snug text-midnight">{e.topic}</p>
+                        <p className="text-small font-medium leading-snug text-ink">{e.topic}</p>
                         <p className="mt-1 line-clamp-3 text-small font-light leading-relaxed text-muted">
                           {e.excerpt}
                         </p>
@@ -337,7 +338,7 @@ function EmptyPanel({ graph, onSelect }) {
     .slice(0, 6)
 
   return (
-    <aside className="flex h-full flex-col rounded-2xl border border-line bg-white px-6 py-6">
+    <aside className="flex h-full flex-col rounded-2xl border border-line bg-surface px-6 py-6">
       <div
         aria-hidden="true"
         className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl"

@@ -89,7 +89,7 @@ export default function PressureStrip({ rollup, stateFilter, onStateFilter }) {
   const coverageLow = rollup.coverage < 0.35
 
   return (
-    <div className="rounded-xl border border-line bg-white p-5">
+    <div className="rounded-xl border border-line bg-surface p-5">
       <div className="grid grid-cols-2 gap-x-6 gap-y-6 lg:grid-cols-4">
         <Figure
           value={moving}
@@ -128,7 +128,7 @@ export default function PressureStrip({ rollup, stateFilter, onStateFilter }) {
       {coverageLow && rollup.windowPosts > 0 && (
         <p
           className="mt-4 rounded-md px-3 py-2 text-caption leading-relaxed"
-          style={{ backgroundColor: alpha(colors.salmon, 0.07), color: colors.midnight }}
+          style={{ backgroundColor: alpha(colors.salmon, 0.07), color: colors.black }}
         >
           <span className="font-medium">Coverage gap.</span> Most recent discussion isn’t explained
           by any active insight — {rollup.windowPosts - rollup.coveredPosts} posts sit outside every

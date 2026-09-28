@@ -18,7 +18,7 @@ import { gsap, canAnimateEntrance } from '../../motion'
 import PillTag from '../PillTag'
 import Sparkline from './Sparkline'
 import MomentumChip from './MomentumChip'
-import { CONFIDENCE, TYPE_LABEL, typeColor, momentumOf, scopeModeOf, pct } from './vocab'
+import { confidenceOf, TYPE_LABEL, typeColor, momentumOf, scopeModeOf, pct } from './vocab'
 
 const DISCOURSE = 'https://community.neutrinos.com'
 
@@ -43,7 +43,7 @@ function Section({ title, children, accent }) {
     <section className="mt-5">
       <h4
         className="text-caption font-semibold uppercase tracking-wide"
-        style={{ color: accent ?? colors.midnight }}
+        style={{ color: accent ?? colors.black }}
       >
         {title}
       </h4>
@@ -126,7 +126,7 @@ export default function BriefPanel({ item, onClose, embedded = false }) {
   return (
     <div
       ref={panel}
-      className="rounded-xl border border-line bg-white"
+      className="rounded-xl border border-line bg-surface"
       style={{ boxShadow: '0 8px 24px rgba(0,5,61,0.10)' }}
       role="complementary"
       aria-label="Insight briefing"
@@ -235,11 +235,11 @@ export default function BriefPanel({ item, onClose, embedded = false }) {
         {!loading && brief && (
           <div ref={bodyRef}>
             <div data-brief-part className="flex flex-wrap items-center gap-2">
-              <PillTag color={CONFIDENCE[brief.confidence] ?? colors.blue} dot>
+              <PillTag color={confidenceOf()[brief.confidence] ?? colors.blue} dot>
                 {brief.confidence} confidence
               </PillTag>
               {isFallback ? (
-                <PillTag color={alpha(colors.midnight, 0.5)}>measurements only</PillTag>
+                <PillTag color={alpha(colors.black, 0.5)}>measurements only</PillTag>
               ) : (
                 <PillTag color={colors.mint}>AI analysis</PillTag>
               )}
@@ -257,7 +257,7 @@ export default function BriefPanel({ item, onClose, embedded = false }) {
               <p
                 data-brief-part
                 className="mt-2 rounded-md px-3 py-2 text-caption text-muted"
-                style={{ backgroundColor: alpha(colors.midnight, 0.04) }}
+                style={{ backgroundColor: alpha(colors.black, 0.04) }}
               >
                 The model could not be reached, so this is measured data only — no analysis was
                 generated. ({brief.reason})

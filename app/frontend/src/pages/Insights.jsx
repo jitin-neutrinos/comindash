@@ -100,7 +100,7 @@ function TypeTabs({ active, onChange, counts }) {
       ref={nav}
       role="tablist"
       aria-label="Filter insights by type"
-      className="relative flex flex-wrap gap-1 rounded-pill border border-line bg-white p-1"
+      className="relative flex flex-wrap gap-1 rounded-pill border border-line bg-surface p-1"
     >
       <div
         ref={pill}
@@ -224,7 +224,7 @@ export default function Insights() {
       </header>
 
       {error && (
-        <div className="rounded-xl border border-line bg-white p-5">
+        <div className="rounded-xl border border-line bg-surface p-5">
           <p className="text-small font-medium text-salmon">Could not load live intelligence</p>
           <p className="mt-1 text-caption text-muted">{String(error.message ?? error)}</p>
         </div>
@@ -242,7 +242,7 @@ export default function Insights() {
 
       <div data-anim="row" className="flex flex-wrap items-center justify-between gap-3">
         <TypeTabs active={type} onChange={setType} counts={counts} />
-        <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-line bg-white p-1 sm:rounded-pill">
+        <div className="flex flex-wrap items-center gap-1 rounded-2xl border border-line bg-surface p-1 sm:rounded-pill">
           <span className="px-2 text-caption text-muted">Sort</span>
           {SORTS.map((s) => (
             <button
@@ -304,7 +304,7 @@ export default function Insights() {
               />
             </>
           ) : (
-            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-line bg-white py-16">
+            <div className="flex flex-col items-center justify-center gap-2 rounded-xl border border-line bg-surface py-16">
               <PillTag>
                 No {stateFilter ? `${stateFilter} ` : ''}
                 {type === 'all' ? '' : `${TYPE_LABEL(type)} `}insights

@@ -122,7 +122,7 @@ const SupportBar = ({ observed, expected, color }) => {
         {/* Chance marker: the bar has to beat this line to mean anything. */}
         {expected > 0 ? (
           <div
-            className="absolute inset-y-[-3px] w-px bg-midnight/60"
+            className="absolute inset-y-[-3px] w-px bg-black/60"
             style={{ left: `${Math.min(expPct, 100)}%` }}
             aria-hidden="true"
           />
@@ -171,7 +171,7 @@ const ClaimCard = ({ c }) => {
   const hasEvidence = c.evidence.length > 0
 
   return (
-    <li className="min-w-0 rounded-2xl border border-line bg-white p-4">
+    <li className="min-w-0 rounded-2xl border border-line bg-surface p-4">
       {/* The claim, as a sentence. */}
       <p className="min-w-0 text-body leading-relaxed">
         <Endpoint ep={c.subject} />{' '}
@@ -182,7 +182,7 @@ const ClaimCard = ({ c }) => {
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <span
           className="inline-flex items-center gap-1.5 rounded-pill px-2.5 py-1 text-caption font-semibold"
-          style={{ background: `${v.color}22`, color: colors.midnight }}
+          style={{ background: `${v.color}22`, color: colors.black }}
         >
           <span
             className="h-1.5 w-1.5 rounded-full"
@@ -273,7 +273,7 @@ export default function ClaimCheck({ data, loading, error }) {
     return (
       <div className="space-y-3">
         {[0, 1].map((i) => (
-          <div key={i} className="rounded-2xl border border-line bg-white p-4">
+          <div key={i} className="rounded-2xl border border-line bg-surface p-4">
             <div className="shimmer h-3 w-3/4 rounded-sm" />
             <div className="shimmer mt-3 h-2.5 w-full rounded-pill" />
             <div className="shimmer mt-3 h-2 w-1/3 rounded-sm" />

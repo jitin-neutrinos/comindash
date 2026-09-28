@@ -28,7 +28,7 @@ export default function EntityBar({ data, loading, height }) {
           margin={{ top: 4, right: 16, bottom: 0, left: 8 }}
         >
           <CartesianGrid stroke={chart.grid} horizontal={false} />
-          <XAxis type="number" stroke={chart.axis} allowDecimals={false} {...axisProps} />
+          <XAxis type="number" stroke={chart.axis} allowDecimals={false} {...axisProps()} />
           <YAxis
             type="category"
             dataKey="label"
@@ -37,13 +37,13 @@ export default function EntityBar({ data, loading, height }) {
             tick={{ fontSize: 12, fill: chart.axis }}
             tickLine={false}
           />
-          <Tooltip content={<BrandTooltip formatter={(v) => `${v} mentions`} />} cursor={{ fill: alpha(colors.midnight, 0.04) }} />
+          <Tooltip content={<BrandTooltip formatter={(v) => `${v} mentions`} />} cursor={{ fill: alpha(colors.black, 0.04) }} />
           <Bar
             dataKey="count"
             name="Mentions"
             fill={chart.primary}
             radius={[0, 4, 4, 0]}
-            background={{ fill: alpha(colors.midnight, 0.05) }}
+            background={{ fill: alpha(colors.black, 0.05) }}
             isAnimationActive={animated}
           />
         </BarChart>
