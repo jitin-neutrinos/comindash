@@ -5,11 +5,12 @@ import { NAV } from './components/Header'
 import StaleBanner from './components/StaleBanner'
 import Overview from './pages/Overview'
 import MetricsExplorer from './pages/MetricsExplorer'
-import PainPoints from './pages/PainPoints'
+import Insights from './pages/Insights'
 import Relationships from './pages/Relationships'
 import DataExplorer from './pages/DataExplorer'
 import InsightDetail from './pages/InsightDetail'
 import Admin from './pages/Admin'
+import Review from './pages/Review'
 import Settings from './pages/Settings'
 import { useGsapPageTransition, useMicroInteractions } from './motion'
 
@@ -57,11 +58,14 @@ function Shell() {
             <Routes location={view}>
               <Route path="/" element={<Overview />} />
               <Route path="/metrics" element={<MetricsExplorer />} />
-              <Route path="/pain-points" element={<PainPoints />} />
+              <Route path="/insights" element={<Insights />} />
               <Route path="/relationships" element={<Relationships />} />
               <Route path="/explorer" element={<DataExplorer />} />
-              <Route path="/insights/:id" element={<InsightDetail />} />
+              {/* `:ref` accepts both `/insights/30` and the canonical
+                  `/insights/<slug>-30`; the page canonicalises the URL. */}
+              <Route path="/insights/:ref" element={<InsightDetail />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/review" element={<Review />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="*" element={<Overview />} />
             </Routes>

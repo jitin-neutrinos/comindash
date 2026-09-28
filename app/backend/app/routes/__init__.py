@@ -10,6 +10,7 @@ from app.routes import (
     pipeline,
     posts,
     relationships,
+    review,
     topics,
     trends,
 )
@@ -25,5 +26,6 @@ ALL_ROUTERS = [
     posts.router,
     relationships.router,
     pipeline.router,
+    review.router,
     exports.router,
 ]

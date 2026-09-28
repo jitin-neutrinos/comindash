@@ -298,6 +298,15 @@ class InsightRelationship(Base):
 
 
 class ModelVersion(Base):
+    """One registered version of one model.
+
+    The registry — not a doc — answers "what is serving, trained from what, on
+    which commit". ``git_history`` is a snapshot of ``git log`` for
+    ``git_paths``, written by ml/scripts/register_model.py at registration
+    time: the API container has neither git nor a repo mount, so it can only
+    read what the host recorded.
+    """
+
     __tablename__ = "model_versions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -308,6 +317,96 @@ class ModelVersion(Base):
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     trained_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     training_set_ref: Mapped[str] = mapped_column(String(256), default="")
+
+    # --- provenance -------------------------------------------------------
+    display_name: Mapped[str] = mapped_column(String(128), default="")
+    task: Mapped[str] = mapped_column(String(256), default="")
+    base_model: Mapped[str] = mapped_column(String(256), default="")
+    architecture: Mapped[str] = mapped_column(String(128), default="")
+    param_count: Mapped[str] = mapped_column(String(32), default="")
+    checkpoint_path: Mapped[str] = mapped_column(String(512), default="")
+    serving_via: Mapped[str] = mapped_column(String(64), default="")
+    stage: Mapped[str] = mapped_column(String(24), default="registered")
+    provider: Mapped[str] = mapped_column(String(64), default="")
+    license: Mapped[str] = mapped_column(String(128), default="")
+    provenance_url: Mapped[str] = mapped_column(String(512), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    deployed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # --- git --------------------------------------------------------------
+    git_commit: Mapped[str] = mapped_column(String(64), default="")
+    git_subject: Mapped[str] = mapped_column(String(512), default="")
+    git_author: Mapped[str] = mapped_column(String(128), default="")
+    git_committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    git_paths: Mapped[list] = mapped_column(JSONField, default=list)
+    git_history: Mapped[list] = mapped_column(JSONField, default=list)
+
+    hyperparams: Mapped[dict | list] = mapped_column(JSONField, default=dict)
+    calibration: Mapped[dict | list] = mapped_column(JSONField, default=dict)
+    labels: Mapped[list] = mapped_column(JSONField, default=list)
+
+
+class ModelTrainingRun(Base):
+    """A training/finetune/experiment run — including the rejected ones.
+
+    A registry that lists only winners hides why the live model is still live.
+    ``outcome`` carries that: deployed | rejected | superseded | experimental.
+    """
+
+    __tablename__ = "model_training_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    model_version_id: Mapped[int] = mapped_column(
+        ForeignKey("model_versions.id", ondelete="CASCADE"), index=True
+    )
+    run_type: Mapped[str] = mapped_column(String(32), default="finetune")
+    label: Mapped[str] = mapped_column(String(128), default="")
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    duration_hours: Mapped[float | None] = mapped_column(Float)
+    epochs: Mapped[int | None] = mapped_column(Integer)
+    final_loss: Mapped[float | None] = mapped_column(Float)
+    hardware: Mapped[str] = mapped_column(String(128), default="")
+    dataset_ref: Mapped[str] = mapped_column(String(512), default="")
+    dataset: Mapped[dict] = mapped_column(JSONField, default=dict)
+    hyperparams: Mapped[dict] = mapped_column(JSONField, default=dict)
+    outcome: Mapped[str] = mapped_column(String(32), default="deployed")
+    outcome_reason: Mapped[str] = mapped_column(Text, default="")
+    git_commit: Mapped[str] = mapped_column(String(64), default="")
+    git_subject: Mapped[str] = mapped_column(String(512), default="")
+    git_committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    log_path: Mapped[str] = mapped_column(String(512), default="")
+    doc_ref: Mapped[str] = mapped_column(String(512), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
+
+
+class ModelEvaluation(Base):
+    """Measured quality for one version. ``per_class`` holds what was measured
+    (precision/recall/f1/support per label) so the UI never derives a number it
+    was not given."""
+
+    __tablename__ = "model_evaluations"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    model_version_id: Mapped[int] = mapped_column(
+        ForeignKey("model_versions.id", ondelete="CASCADE"), index=True
+    )
+    training_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("model_training_runs.id", ondelete="SET NULL")
+    )
+    eval_type: Mapped[str] = mapped_column(String(32), default="holdout")
+    eval_set_ref: Mapped[str] = mapped_column(String(512), default="")
+    eval_rows: Mapped[int | None] = mapped_column(Integer)
+    evaluated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    accuracy: Mapped[float | None] = mapped_column(Float)
+    macro_f1: Mapped[float | None] = mapped_column(Float)
+    per_class: Mapped[dict] = mapped_column(JSONField, default=dict)
+    confusion: Mapped[dict] = mapped_column(JSONField, default=dict)
+    is_current: Mapped[bool] = mapped_column(Boolean, default=True)
+    git_commit: Mapped[str] = mapped_column(String(64), default="")
+    doc_ref: Mapped[str] = mapped_column(String(512), default="")
+    notes: Mapped[str] = mapped_column(Text, default="")
 
 
 class ReviewFeedback(Base):

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, AlertCircle, BarChart2, ChevronDown, ChevronRight, Database, RefreshCw, Search, Server } from 'lucide-react'
+import { Activity, AlertCircle, BarChart2, Brain, ChevronDown, ChevronRight, Database, Gauge, RefreshCw, Search, Server } from 'lucide-react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { format } from 'date-fns'
 
@@ -12,13 +12,47 @@ import MetricCard from '../components/MetricCard'
 import MetricInfo from '../components/MetricInfo'
 import { BrandTooltip, ChartEmpty, axisProps, useChartAnimation } from '../components/charts/chartKit'
 import { ListSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeletons'
+import CommandCentre from '../components/admin/CommandCentre'
+import Review from './Review'
 
+// Tab order is the order an operator actually asks questions in: "is it up?"
+// (command centre) → "is the AI any good?" (review) → the raw evidence
+// underneath (logs, metrics, history, audit).
 const TABS = [
+  { id: 'status', label: 'Command centre', icon: Gauge },
+  { id: 'review', label: 'Model review', icon: Brain },
   { id: 'logs', label: 'System logs', icon: Server },
   { id: 'metrics', label: 'Metrics', icon: BarChart2 },
   { id: 'pipeline', label: 'Pipeline history', icon: Activity },
   { id: 'audit', label: 'Audit log', icon: Database },
 ]
+
+/** Deep-linkable tab state, kept in the URL hash.
+ *
+ *  Why the hash and not component state alone: the review tab is the page a
+ *  reader gets pointed at ("look at the model review"), and a bare /admin link
+ *  that always lands on the command centre makes that impossible to share. */
+function useHashTab(fallback) {
+  const valid = TABS.map((t) => t.id)
+  const read = () => {
+    const h = window.location.hash.replace(/^#/, '')
+    return valid.includes(h) ? h : fallback
+  }
+  const [tab, setTab] = useState(read)
+  useEffect(() => {
+    const onHash = () => setTab(read())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const select = (id) => {
+    setTab(id)
+    // replaceState, not location.hash =: assigning to the hash pushes a history
+    // entry per tab click, so Back would walk the tab trail instead of leaving.
+    window.history.replaceState(null, '', `#${id}`)
+  }
+  return [tab, select]
+}
 
 /** Log-level → brand color. Semantic state indicators, same treatment as the
  * status pills used everywhere else (semantics.run / semantics.priority). */
@@ -32,7 +66,7 @@ const LEVEL_META = {
 
 export default function Admin() {
   const root = usePageChoreo([])
-  const [activeTab, setActiveTab] = useState('logs')
+  const [activeTab, setActiveTab] = useHashTab('status')
 
   const tabClass = (active) =>
     `flex items-center gap-2 rounded-pill px-4 py-1.5 text-small font-medium transition-colors ${
@@ -43,10 +77,14 @@ export default function Admin() {
     <div ref={root} className="space-y-8">
       <header data-anim="header">
         <div className="flex items-center gap-2">
-          <h1 className="text-h2 font-semibold tracking-tight">Platform enablement</h1>
+          <h1 className="text-h2 font-semibold tracking-tight">Command centre</h1>
           <MetricInfo metricKey="adminPage" />
         </div>
-        <p className="mt-1 font-light text-muted">System observability, logs, and audit trails.</p>
+        <p className="mt-1 max-w-3xl font-light text-muted">
+          Every moving part of this dashboard in one place: container and worker health, the
+          ingestion → prediction → extraction → analysis pipeline, the AI models behind it, and the
+          raw logs and audit trail underneath.
+        </p>
       </header>
 
       <div data-anim="row" className="flex flex-wrap gap-2" role="tablist" aria-label="Admin section">
@@ -66,6 +104,8 @@ export default function Admin() {
       </div>
 
       <div data-anim="chart">
+        {activeTab === 'status' && <CommandCentre />}
+        {activeTab === 'review' && <Review embedded />}
         {activeTab === 'logs' && <SystemLogs />}
         {activeTab === 'metrics' && <MetricsDashboard />}
         {activeTab === 'pipeline' && <PipelineHistory />}
