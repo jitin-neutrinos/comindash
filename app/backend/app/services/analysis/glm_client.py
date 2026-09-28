@@ -22,14 +22,76 @@ import httpx
 logger = logging.getLogger("analysis.glm")
 
 GLM_BASE_URL = os.environ.get("GLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4/chat/completions")
-ASSISTANT_VERSION = "glm-5.3-v1"
+ASSISTANT_VERSION = "glm-5.3-v2-product-context"
+
+# Grounded in documentation.neutrinos.com (mcp__neutrinos_docs__search_docs,
+# verified 2026-09-28) — real product descriptions, not GLM-hallucinated
+# guesses. Keys match ml/pipeline/inference_server.py GLINER_LABELS so entity
+# labels in the extract resolve to real product context instead of bare
+# lowercase tags the model has to guess at.
+PRODUCT_GLOSSARY = {
+    "alpha": "Alpha Platform — low-code workflow/rules engine; Workflow Studio "
+             "builds triggers and case-management flows, executed via the Workbench inbox.",
+    "trinity": "Trinity 2.0 — cloud hosting platform for deployed apps: CI/CD from "
+               "Azure DevOps/GitHub/Docker Hub, app/data/user management, reporting.",
+    "pulse": "Pulse — rules/workflow publication layer: configures triggers "
+             "(immediate or CRON), integrates rules/workflows/master data via generated Swagger APIs.",
+    "reels": "Reels — rules engine (Reels Engine) that evaluates and executes "
+             "business rules via REST APIs; built for high-volume decisioning.",
+    "reels_engine": "Reels Engine — the rule-execution runtime inside Reels; Alpha "
+                    "and Pulse trigger Reels rules/workflows by tag or version.",
+    "workbench": "Workbench — the Alpha Platform's low-code case/task workspace: "
+                 "inbox, case assignment, task states, layouts.",
+    "ssd": "Server Services Designer (SSD) — drag-and-drop flow builder for "
+           "server-side business logic and HTTP endpoints (via Studio).",
+    "csd": "Client Services Designer (CSD) — flow builder for client-side "
+           "business logic, companion to SSD.",
+    "ai_hub": "AI Hub — Neutrinos' AI SDK/framework (InferenceSDK): classification, "
+              "extraction and assistant services, batch + single-call APIs for AI-driven workflows.",
+    "studio": "Neutrinos Studio — the core app builder: pages, widgets, plugins, "
+              "app templates; the IDE most Neutrinos apps are built in.",
+    "modelr": "Modelr — visual service modeling tool (nodes/wires/flows) for "
+              "integrating backends, ESBs, cloud services and databases.",
+    "hypha": "Hypha — unified data layer/architecture across on-prem, cloud and "
+             "edge sources: object framework, workspace, business object management.",
+    "identity_server": "Identity Server (IDS) — OAuth 2.0 + OpenID Connect provider: "
+                        "authentication, SSO, token issuance for all Neutrinos apps.",
+    "plugins_builder": "Plugins Builder — Studio tool to build custom nodes/plugins "
+                       "consumable from Page Designer, SSD and CSD.",
+    "components": "Components — the reusable UI building-block library (Column, "
+                  "Panel, form widgets, etc.) used across Studio-built apps.",
+    "data_fabric": "Data Fabric — architectural layer unifying data across sources "
+                   "with governed access; object framework, metadata, relationships.",
+    "flow_designer": "Flow Designer — page/service flow builder: nodes, lifecycle "
+                     "events, dialogs, script/date/IndexedDB nodes.",
+    "app_builder": "App Builder — Studio's app-creation and template management UI.",
+    "srm_platform": "SRM Platform — sales/relationship management: contacts, deals, "
+                    "team stats, admin user/role management.",
+    "art_api": "ART API — Neutrinos' API runtime engine; REST endpoints for data "
+               "model, index and authorization management.",
+}
+
+
+def _glossary_block() -> str:
+    lines = [f"- {k}: {v}" for k, v in PRODUCT_GLOSSARY.items()]
+    return "Neutrinos product glossary (ground every product reference in this, never guess):\n" + "\n".join(lines)
+
 
 SYSTEM_PROMPT = (
-    "You are the community analyst for the Neutrinos Discourse forum. You "
-    "receive an analysis extract: forum posts with priority, sentiment and "
-    "entities, plus aggregate counts. Identify real pain points, trends, "
-    "anomalies and component relationships. Answer with ONLY a JSON object, "
-    "no markdown fences, matching exactly:\n"
+    "You are the community analyst for the Neutrinos Discourse forum, a real "
+    "enterprise low-code platform. You receive an analysis extract: forum "
+    "posts with priority, sentiment and entities (products, people, "
+    "co-occurrence pairs), plus aggregate counts.\n\n"
+    + _glossary_block() + "\n\n"
+    "Ground every insight in what these products actually do — do not invent "
+    "capabilities. Use entity co-occurrence pairs (format 'X + Y') to find "
+    "real cross-component relationships (e.g. a person repeatedly tied to "
+    "one product signals a support hotspot or ownership; two products tied "
+    "together signals an integration pain point). Prefer insights that name "
+    "the specific product over generic 'the platform'.\n\n"
+    "Identify real pain points, trends, anomalies and component "
+    "relationships. Answer with ONLY a JSON object, no markdown fences, "
+    "matching exactly:\n"
     '{"insights": [{"insight_type": "pain_point|trend|anomaly|relationship|'
     'recommendation", "title": str (<=200 chars), "body": str, "severity": '
     '"high|medium|low", "evidence": [{"discourse_post_id": int FROM THE '

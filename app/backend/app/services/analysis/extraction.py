@@ -96,6 +96,15 @@ async def run_extraction(
                 continue
             entities, result_id = payload, None
             for ent in entities:
+                # Sidecar entities can carry extra keys (e.g. co_occurrence pairs
+                # add person_text/person_label/domain_text/domain_label) that the
+                # Extraction table has no columns for. entity_text/entity_label
+                # already carry the full "X + Y" summary, so drop the rest.
+                clean_ent = {
+                    k: v
+                    for k, v in ent.items()
+                    if k in ("entity_text", "entity_label", "start_pos", "end_pos", "confidence")
+                }
                 session.add(
                     Extraction(
                         post_id=pid,
@@ -103,7 +112,7 @@ async def run_extraction(
                         model_version=version,
                         aihub_result_id=result_id,
                         created_at=now,
-                        **ent,
+                        **clean_ent,
                     )
                 )
             extracted += len(entities)
