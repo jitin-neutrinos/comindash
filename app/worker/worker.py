@@ -77,6 +77,61 @@ import asyncpg
 WORKER_DIR = Path(__file__).resolve().parent
 APP_ROOT = WORKER_DIR.parent
 
+# --- Alerting (production hardening 2026-09-28) -------------------------------
+# Worker-side failures must reach a human without anyone opening a dashboard.
+# ntfy (host 127.0.0.1:8086 from the worker container's perspective: the
+# compose gateway) takes a single POST — no client lib, no queue dependency,
+# and failure to alert must NEVER break job processing.
+NTFY_URL = os.environ.get("NTFY_URL", "http://172.22.0.1:8086/")
+NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "comindash-alerts")
+NTFY_TOKEN = os.environ.get("NTFY_TOKEN", "")  # ntfy runs auth-default deny-all
+
+
+async def alert(title: str, body: str, tags: str = "warning") -> None:
+    """Fire-and-forget push alert. Best-effort: log on failure, never raise."""
+    import urllib.request
+    try:
+        headers = {
+            "Title": title,
+            "Tags": tags,
+            "Priority": "high" if "critical" in tags else "default",
+        }
+        if NTFY_TOKEN:
+            headers["Authorization"] = f"Bearer {NTFY_TOKEN}"
+        req = urllib.request.Request(
+            NTFY_URL + NTFY_TOPIC,
+            data=(body or title).encode(),
+            headers=headers,
+            method="POST",
+        )
+        def _post():
+            with urllib.request.urlopen(req, timeout=3) as r:
+                return r.status
+        await asyncio.to_thread(_post)
+    except Exception as exc:  # noqa: BLE001 — alerting must never break jobs
+        log("alert_failed", level="warning", title=title, error=str(exc)[:200])
+
+
+def _alert_digest(error: str, kind: str) -> str:
+    """Collapse repeated identical failures into one alert every 30 min."""
+    now = time.time()
+    key = f"{kind}:{error[:120]}"
+    state = _ALERT_STATE
+    state["last"] = now
+    prev = state.get(key)
+    state[key] = now
+    # keep the map bounded
+    if len(state) > 64:
+        for k in list(state.keys())[:-1]:
+            if k != "last":
+                del state[k]
+    return "dedupe_new" if (prev is None or now - prev > 1800) else "dedupe_skip"
+
+
+_ALERT_STATE: dict = {}
+
+# ---------------------------------------------------------------------------
+
 
 def _backend_paths() -> list[str]:
     paths = [p for p in os.environ.get("BACKEND_PATH", "/app/backend").split(":") if p]
@@ -217,10 +272,33 @@ async def handle_assistant_cycle(job_id: int, payload: dict[str, Any]) -> dict[s
     return {"stats": stats if isinstance(stats, dict) else {"result": str(stats)}}
 
 
+async def handle_maintenance(job_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+    """Retention purges + storage guard (services/retention.py, prod 2026-09-28)."""
+    log("handler_start", job_id=job_id, kind="maintenance")
+    stats = await _call_first_available(
+        [
+            ("app.services.retention", ["run_maintenance", "run"]),
+        ],
+        payload,
+    )
+    result = stats if isinstance(stats, dict) else {"result": str(stats)}
+    # Storage guard: alert when the volume hosting Postgres crosses critical.
+    storage: Any = result.get("storage")
+    if isinstance(storage, dict) and storage.get("state") == "critical":
+        await alert(
+            "Storage critical: pipeline volume nearly full",
+            f"Volume {storage.get('path')} at {storage.get('used_pct')}% used, "
+            f"{storage.get('free_gb')}GB free. Ingest may fail soon.",
+            tags="floppy_disk,critical",
+        )
+    return {"stats": result}
+
+
 HANDLERS = {
     "ingest": handle_ingest,
     "analyze": handle_analyze,
     "assistant_cycle": handle_assistant_cycle,
+    "maintenance": handle_maintenance,
 }
 
 # ---------------------------------------------------------------------------
@@ -321,6 +399,20 @@ async def fail_job(conn: asyncpg.Connection, job_id: int, kind: str, attempts: i
     log("job_failed", level=level, job_id=job_id, kind=kind, attempts=attempts,
         next_status=status, retry_in_s=backoff_delay_s(attempts) if status == "pending" else None,
         error=error)
+    # Production alerting: retrying failures alert at WARN once per 30 min per
+    # unique error; a job going DEAD (exhausted retries) always alerts at HIGH.
+    if status == "dead":
+        await alert(
+            "Job dead-lettered: pipeline needs attention",
+            f"Job #{job_id} ({kind}) exhausted {attempts} attempts.\n{error[:400]}",
+            tags="skull,critical",
+        )
+    elif _alert_digest(error, kind) == "dedupe_new":
+        await alert(
+            f"Job failing (attempt {attempts}/{MAX_ATTEMPTS}): {kind}",
+            f"Job #{job_id} ({kind}) failed and will retry.\n{error[:400]}",
+            tags="warning",
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -21,9 +21,13 @@ os.environ["DISCOURSE_API_KEY"] = ""
 os.environ["INGEST_TOKEN"] = "test-ingest-token"
 os.environ["SCHEDULER_ENABLED"] = "false"
 # Tests assert stub-mode behaviour: point the analysis sidecar at a dead port
-# so analyse_texts always takes the stub fallback regardless of a locally
+# so every analyse_texts call exercises the stub path instead of a real
 # running sidecar (SIDECAR_URL is read at import time by _stage).
+# Fast-fail the cold-start retries too: tests never want to sleep through the
+# socket-activation retry loop.
 os.environ["ANALYSIS_SIDECAR_URL"] = "http://127.0.0.1:1"
+os.environ["SIDECAR_CONNECT_RETRIES"] = "1"
+os.environ["SIDECAR_RETRY_DELAY_S"] = "0.1"
 
 import pytest  # noqa: E402
 from httpx import ASGITransport, AsyncClient  # noqa: E402

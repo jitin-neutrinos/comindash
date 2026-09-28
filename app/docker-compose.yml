@@ -8,6 +8,21 @@ services:
       POSTGRES_USER: insights
       POSTGRES_PASSWORD: ${DB_PASSWORD:-insights_local}
       POSTGRES_DB: insights
+    command:
+      # Production sizing for a shared 64GB host: bounded shared_buffers and
+      # connections keep Postgres a good citizen next to the GPU sidecar and
+      # desktop session, instead of default-config memory growth.
+      - "postgres"
+      - "-c"
+      - "shared_buffers=1GB"
+      - "-c"
+      - "max_connections=60"
+      - "-c"
+      - "work_mem=16MB"
+      - "-c"
+      - "maintenance_work_mem=256MB"
+      - "-c"
+      - "autovacuum_max_workers=2"
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
@@ -18,6 +33,10 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 3g
 
   backend:
     build: ./backend
@@ -44,6 +63,15 @@ services:
       retries: 3
       start_period: 20s
     restart: unless-stopped
+    # Production resource bounds (OOM guard): the backend is a thin API over
+    # Postgres; 512M is ~3x its observed working set. Hard limit = OOM-kill
+    # the container (restart policy revives it) instead of the host OOM
+    # killer taking down Postgres or the desktop session.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "2.0"
 
   worker:
     build: ./worker
@@ -55,6 +83,8 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+asyncpg://insights:${DB_PASSWORD:-insights_local}@db:5432/insights
+      SIDECAR_CONNECT_RETRIES: "6"
+      SIDECAR_RETRY_DELAY_S: "10"
     volumes:
       - ./backend:/app/backend
       - ./logs:/app/logs
@@ -62,6 +92,14 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    # Production resource bounds: worker executes ingest/analysis batches in
+    # memory (bounded by analysis_batch_size=500 posts); 768M covers that
+    # with headroom while capping a runaway batch before it hits the host.
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+          cpus: "2.0"
 
   frontend:
     build: ./frontend
@@ -80,6 +118,9 @@ services:
       - ./loki-config.yml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   promtail:
     image: grafana/promtail:2.9.4
@@ -88,6 +129,9 @@ services:
       - ./promtail-config.yml:/etc/promtail/config.yml
     command: -config.file=/etc/promtail/config.yml
     restart: unless-stopped
+    logging:
+      driver: json-file
+      options: { max-size: "10m", max-file: "3" }
 
   prometheus:
     image: prom/prometheus:v2.45.3

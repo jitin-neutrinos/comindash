@@ -114,18 +114,63 @@ if "ANALYSIS_SIDECAR_URL" not in os.environ and os.path.exists("/.dockerenv"):
     SIDECAR_URL = "http://172.22.0.1:8101"
 SIDECAR_VERSION = "laya-v1"
 
+# The sidecar is socket-activated and idles out to free the GPU, so the FIRST
+# call after an idle window can hit a connection-refused while systemd spawns
+# the process (~10-15s model load). Retry connect failures with backoff and
+# only fall back to stubs when the sidecar stays down — a cold start must
+# never silently degrade a batch to keyword stubs.
+SIDECAR_CONNECT_RETRIES = int(os.environ.get("SIDECAR_CONNECT_RETRIES", "5"))
+SIDECAR_RETRY_DELAY_S = float(os.environ.get("SIDECAR_RETRY_DELAY_S", "8.0"))
+# Saturating sidecar (503, concurrency cap) is also retryable — the worker is
+# the only producer, so this only triggers on manual bursts.
+
 _http = httpx.AsyncClient(timeout=120.0)  # module-level; sidecar is local
 
 
+def _is_retryable(exc: Exception | None, status_code: int | None) -> bool:
+    if isinstance(exc, (httpx.ConnectError, httpx.ConnectTimeout, httpx.ReadTimeout)):
+        return True  # cold start / spawn race — retry
+    if status_code in (502, 503, 504):
+        return True  # saturation or mid-restart — retry
+    return False
+
+
 async def _sidecar_post(path: str, texts: list[str]) -> list | None:
-    """POST texts to the sidecar; None when unreachable/invalid (caller falls back)."""
-    try:
-        resp = await _http.post(f"{SIDECAR_URL}{path}", json={"texts": texts})
-        resp.raise_for_status()
-        return resp.json().get("results")
-    except Exception:  # noqa: BLE001 — any sidecar failure means stub fallback
-        logger.info("analysis sidecar unreachable at %s — falling back to stub", SIDECAR_URL)
-        return None
+    """POST texts to the sidecar; None when unreachable/invalid (caller falls back).
+
+    Retries connect errors and 502/503/504 (socket-activation cold start,
+    concurrency saturation) up to SIDECAR_CONNECT_RETRIES times, so a GPU that
+    is being spun up on demand is waited for instead of stubbed out.
+    """
+    import asyncio
+
+    last_reason = ""
+    attempt = 0
+    for attempt in range(1, SIDECAR_CONNECT_RETRIES + 1):
+        exc: Exception | None = None
+        status_code: int | None = None
+        try:
+            resp = await _http.post(f"{SIDECAR_URL}{path}", json={"texts": texts})
+            status_code = resp.status_code
+            if status_code < 400:
+                return resp.json().get("results")
+            resp.raise_for_status()
+        except Exception as e:  # noqa: BLE001 — classified below
+            exc = e
+        last_reason = f"{type(exc).__name__ if exc else status_code}"
+        if not _is_retryable(exc, status_code):
+            break  # hard error (422 payload, 500 model crash) — no point retrying
+        if attempt < SIDECAR_CONNECT_RETRIES:
+            logger.info(
+                "sidecar not ready (attempt %d/%d, %s) — waiting %.0fs for cold start",
+                attempt, SIDECAR_CONNECT_RETRIES, last_reason, SIDECAR_RETRY_DELAY_S,
+            )
+            await asyncio.sleep(SIDECAR_RETRY_DELAY_S)
+    logger.info(
+        "analysis sidecar unreachable at %s after %d attempt(s) (%s) — falling back to stub",
+        SIDECAR_URL, attempt, last_reason,
+    )
+    return None
 
 
 async def analyse_texts(

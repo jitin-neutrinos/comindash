@@ -990,3 +990,64 @@ export function formatDate(ts) {
   })
 }
 export { req as getApi }
+
+/* ---- Ops / production hardening (2026-09-28) --------------------------------- */
+
+const opsBool = (v) => v === true || v === 'true'
+
+export const getOpsConfig = () => req('/admin/ops/config')
+
+export const saveOpsConfig = (patch) =>
+  req('/admin/ops/config', { method: 'POST', body: JSON.stringify(patch), headers: { 'Content-Type': 'application/json' } })
+
+export const getOpsOverview = () =>
+  req('/admin/ops/overview').then((d) => ({
+    queue: {
+      pending: num(d?.queue?.pending),
+      running: num(d?.queue?.running),
+      dead: num(d?.queue?.dead),
+      workerState: str(d?.queue?.worker_state) || 'unknown',
+      workerReason: str(d?.queue?.worker_reason),
+      lastActivity: str(d?.queue?.last_activity),
+      byKind: d?.queue?.by_kind ?? {},
+    },
+    deadJobs: list(d?.dead_jobs).map((j) => ({
+      id: num(j?.id),
+      kind: str(j?.kind),
+      attempts: num(j?.attempts),
+      error: str(j?.error),
+      lastTry: str(j?.last_try),
+    })),
+    sidecar: {
+      reachable: Boolean(d?.sidecar?.reachable),
+      warm: Boolean(d?.sidecar?.warm),
+      idleUnloadS: num(d?.sidecar?.idle_unload_s),
+      idleUnloadEnabled: opsBool(d?.sidecar?.idle_unload_enabled),
+      secondsSinceLastUse: num(d?.sidecar?.seconds_since_last_use),
+      requestsTotal: num(d?.sidecar?.requests_total),
+      requestsFailed: num(d?.sidecar?.requests_failed),
+      rejectedSaturation: num(d?.sidecar?.rejected_saturation),
+      textsClassified: num(d?.sidecar?.texts_classified),
+      textsExtracted: num(d?.sidecar?.texts_extracted),
+      vramMb: d?.sidecar?.gpu_vram_allocated_mb ?? null, // null = not measured
+      uptimeS: num(d?.sidecar?.uptime_s),
+    },
+    storage: {
+      state: str(d?.storage?.state) || 'unknown',
+      usedPct: num(d?.storage?.used_pct),
+      freeGb: num(d?.storage?.free_gb),
+      totalGb: num(d?.storage?.total_gb),
+    },
+    retentionPolicy: {
+      jobDoneDays: num(d?.retention_policy?.job_done_retention_days),
+      runDays: num(d?.retention_policy?.run_retention_days),
+      auditDays: num(d?.retention_policy?.audit_retention_days),
+    },
+    prom24h: {
+      jobsDone: d?.prometheus_24h?.jobs_done_24h ?? null,
+      jobsFailed: d?.prometheus_24h?.jobs_failed_24h ?? null,
+      jobRetries: d?.prometheus_24h?.job_retries_24h ?? null,
+    },
+  }))
+
+export const triggerMaintenance = () => req('/admin/ops/maintenance/run', { method: 'POST' })

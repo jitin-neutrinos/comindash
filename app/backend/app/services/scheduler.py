@@ -32,6 +32,13 @@ async def enqueue_assistant_cycle() -> None:
     logger.info("scheduler: enqueued assistant_cycle")
 
 
+async def enqueue_maintenance() -> None:
+    """Daily retention purge + storage guard (prod hardening 2026-09-28)."""
+    async with get_run_session() as session:
+        await jobs.enqueue(session, "maintenance", {"triggered_by": "scheduler"})
+    logger.info("scheduler: enqueued maintenance")
+
+
 def create_scheduler() -> AsyncIOScheduler:
     s = get_settings()
     scheduler = AsyncIOScheduler(timezone="UTC")
@@ -49,6 +56,15 @@ def create_scheduler() -> AsyncIOScheduler:
         hour=s.assistant_cycle_hour,
         minute=0,
         id="assistant_cycle",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue_maintenance,
+        "cron",
+        hour=3,
+        minute=30,
+        id="maintenance",
         max_instances=1,
         coalesce=True,
     )

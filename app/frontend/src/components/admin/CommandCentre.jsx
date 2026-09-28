@@ -5,6 +5,7 @@
 // cannot be obtained (the API container cannot see Docker), the card says so
 // rather than guessing a green light.
 import { getSystem, relTime, useApi } from '../../api'
+import { getOpsOverview } from '../../api'
 import { alpha, colors } from '../../theme'
 import { usePulseAll } from '../../motion'
 import { Bezel, Eyebrow, SectionHead } from '../Surface'
@@ -152,6 +153,7 @@ function StageCard({ stage }) {
 
 export default function CommandCentre() {
   const { data, loading, error } = useApi(getSystem, { intervalMs: 30000 })
+  const { data: ops } = useApi(getOpsOverview, { intervalMs: 30000 })
   const root = useRef(null)
   usePulseAll(root, '[data-pulse]', [data, loading])
 
@@ -273,6 +275,51 @@ export default function CommandCentre() {
           )}
         </Bezel>
       </section>
+
+      {/* --- GPU + storage ops strip (production hardening 2026-09-28) ------ */}
+      {ops && (
+        <section data-anim="row">
+          <SectionHead eyebrow="Operations" title="GPU · storage · throughput" />
+          <Bezel accent={colors.blue} radius={18} pad={4}>
+            <div className="grid grid-cols-2 gap-6 p-5 sm:grid-cols-3 lg:grid-cols-6">
+              <Stat
+                label="GPU sidecar"
+                value={ops.sidecar.reachable ? (ops.sidecar.warm ? 'loaded' : 'cold') : 'off'}
+                tone={ops.sidecar.reachable ? colors.blue : colors.salmon}
+                hint={ops.sidecar.reachable ? `${ops.sidecar.vramMb ?? '—'} MB VRAM` : 'spawns on next job'}
+              />
+              <Stat
+                label="Idle unload"
+                value={ops.sidecar.idleUnloadEnabled ? `${Math.round(ops.sidecar.idleUnloadS / 60)} min` : 'off'}
+                hint={ops.sidecar.idleUnloadEnabled ? 'frees GPU when idle' : 'models stay resident'}
+              />
+              <Stat
+                label="Sidecar calls"
+                value={ops.sidecar.requestsTotal.toLocaleString()}
+                hint={`${ops.sidecar.textsClassified.toLocaleString()} classified · ${ops.sidecar.textsExtracted.toLocaleString()} extracted`}
+              />
+              <Stat
+                label="Storage"
+                value={`${ops.storage.usedPct}%`}
+                tone={ops.storage.state === 'critical' ? colors.salmon : ops.storage.state === 'warn' ? colors.iris : undefined}
+                hint={`${ops.storage.freeGb} GB free of ${ops.storage.totalGb} GB`}
+              />
+              <Stat
+                label="Jobs 24h"
+                value={ops.prom24h.jobsDone ?? '—'}
+                tone={ops.prom24h.jobsFailed ? colors.salmon : undefined}
+                hint={`${ops.prom24h.jobsFailed ?? 0} failed · ${ops.prom24h.jobRetries ?? 0} retries`}
+              />
+              <Stat
+                label="Dead jobs"
+                value={ops.queue.dead}
+                tone={ops.queue.dead ? colors.salmon : undefined}
+                hint={ops.deadJobs.length ? `latest: ${ops.deadJobs[0].kind}` : 'none'}
+              />
+            </div>
+          </Bezel>
+        </section>
+      )}
 
       {/* --- pipeline ------------------------------------------------------ */}
       <section data-anim="row">
