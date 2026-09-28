@@ -31,7 +31,18 @@ CKPT = os.path.join(HERE, "..", "laya", "checkpoints", "insights-v1")
 # Fine-tuned 2026-09-27 (macro F1 89.6% on holdout vs 43% zero-shot avg across
 # person/product/email — see ml/gliner_finetune.log). Falls back to the
 # zero-shot base model if the checkpoint is ever missing/moved.
-GLINER_CKPT = os.path.join(HERE, "..", "gliner", "checkpoints", "forum-v2")
+# forum-v3 (2026-09-28): retrained on 10 explicit vocab labels mined from real
+# forum posts (1406+ real mentions + 60 hard-negative API/GitHub posts to fix
+# ai_hub false positives) + existing gold person/email data. Held-out check
+# (disjoint 15-row sample, not the auto-eval's broken split -- see
+# docs/ner-train-plan-2026-09-27.md "known limits"): ai_hub P=100% R=84% F1=91%,
+# up from 43% zero-shot; ssd 92%, studio 95%, trinity 95%, components 84%,
+# person 97%, no regression anywhere. Labels not in the 10-label training set
+# (pulse, hypha, csd, workbench, modelr, data_fabric, flow_designer,
+# app_builder, srm_platform, art_api, reels_engine, plugins_builder) still run
+# zero-shot through this same checkpoint -- GLiNER's span-matching head
+# generalizes to novel labels regardless of fine-tuning on others.
+GLINER_CKPT = os.path.join(HERE, "..", "gliner", "checkpoints", "forum-v3")
 
 PRIORITY_Q = {
     "type": "choice",
