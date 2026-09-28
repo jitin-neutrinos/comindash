@@ -234,7 +234,7 @@ export default function Sidebar({ open, onClose }) {
         ref={backdrop}
         aria-hidden="true"
         onClick={onClose}
-        className="fixed inset-0 z-30 bg-midnight/50 lg:hidden"
+        className="fixed inset-0 z-30 backdrop-blur-sm lg:hidden"
         style={{ opacity: 0, visibility: 'hidden' }}
       />
       <aside

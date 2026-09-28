@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { colors, graph as graphTone, mode as currentMode } from '../../theme'
 import { canAnimateEntrance } from '../../motion'
-import { cytoscape, layoutOptions, relLabel, toElements } from './cytoGraph'
+import { cytoscape, relLabel, toElements } from './cytoGraph'
 import { truncate } from './forceGraph'
 
 /**
@@ -166,7 +166,6 @@ export default function KnowledgeGraph({
 }) {
   const root = useRef(null)
   const cyRef = useRef(null)
-  const layoutRef = useRef(null)
   const applyFocusRef = useRef(null)
   const onSelectRef = useRef(onSelect)
   onSelectRef.current = onSelect
@@ -187,7 +186,9 @@ export default function KnowledgeGraph({
     const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
     const cy = cytoscape({
       container: host,
-      elements: decorate(structuredClone(elements)),
+      // NB: constructor `elements:` silently DROPS position fields in
+      // cytoscape 3.34 (nodes land at 0,0) — add() honors them. Verified
+      // minimal repro in node + browser, 2026-09-28.
       style: buildStyles(reduced),
       layout: { name: 'null' },
       wheelSensitivity: 0.25,
@@ -196,6 +197,7 @@ export default function KnowledgeGraph({
       pixelRatio: true,
       renderer: { name: 'canvas' },
     })
+    cy.add(decorate(structuredClone(elements)))
     cyRef.current = cy
     // Dev handle for e2e verification (prod builds tree-shake this away).
     if (import.meta.env?.DEV) window.__kg = cy
@@ -380,13 +382,17 @@ export default function KnowledgeGraph({
       }, 1600)
     })
 
-    /* Entrance = the fcose settle itself (once per dataset). Reduced motion
-     * or a hidden tab runs it instantly so content never waits on an
-     * animation (project hard rule). */
-    layoutRef.current?.stop()
-    const l = cy.layout(layoutOptions(true && canAnimateEntrance()))
-    layoutRef.current = l
-    l.run()
+    /* Entrance: positions arrive settled from d3-force (preset). Fit the
+     * map to the viewport — on the first fit only, animate it so the zoom
+     * settle reads as the entrance. Reduced motion / hidden tab: plain
+     * fit, content never waits on an animation (project hard rule). */
+    if (canAnimateEntrance()) {
+      cy.fit(undefined, 46)
+      cy.zoom({ level: cy.zoom() * 0.82 })
+      cy.animate({ fit: { padding: 46 } }, { duration: 620, easing: 'ease-out' })
+    } else {
+      cy.fit(undefined, 46)
+    }
 
     const ro = new ResizeObserver(() => cy.resize())
     ro.observe(host)
@@ -395,7 +401,6 @@ export default function KnowledgeGraph({
       window.removeEventListener('keydown', onKey)
       tip.remove()
       ro.disconnect()
-      layoutRef.current?.stop()
       cy.destroy()
       cyRef.current = null
       applyFocusRef.current = null

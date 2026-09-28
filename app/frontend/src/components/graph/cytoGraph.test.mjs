@@ -1,7 +1,8 @@
 /**
  * Self-check for cytoGraph.js — run with `node src/components/graph/cytoGraph.test.mjs`
- * (cwd = frontend/). Vite maps bare `cytoscape` via node_modules, node needs the
- * explicit .js path — both resolve to the same module.
+ * (cwd = frontend/). Layout is d3-force preset (fcose reverted 2026-09-28 —
+ * it produced a tile-ring on this corpus and a collapsed column on narrow
+ * viewports); these tests pin determinism, payload contract, and 2-D spread.
  */
 import {
   cytoscape,
@@ -48,25 +49,57 @@ assert.equal(els.edges.length, 2, 'dangling edge dropped')
 assert.equal(els.edges[1].data.relLabel, 'correlates with')
 assert.equal(els.edges[0].data.posts, 12)
 assert.ok(els.nodes.every((n) => typeof n.position.x === 'number' && typeof n.position.y === 'number'))
-// determinism of element construction
+// determinism of element construction (d3 layout is deterministic)
 assert.deepEqual(toElements(g), els)
 
-// --- headless cytoscape + fcose run: layout is deterministic ----------------
+// --- layout: deterministic + genuinely 2-D (regression: fcose tile-ring) ----
 const pos1 = await runLayout(g)
 assert.equal(Object.keys(pos1).length, 4)
 for (const [id, p] of Object.entries(pos1)) {
   assert.ok(Number.isFinite(p.x) && Number.isFinite(p.y), `${id} finite`)
-  assert.ok(Math.abs(p.x) < 1e6 && Math.abs(p.y) < 1e6, `${id} bounded`)
 }
 const pos2 = await runLayout(g)
-assert.deepEqual(pos1, pos2, 'fcose with seeded starts is deterministic')
+assert.deepEqual(pos1, pos2, 'd3 preset layout is deterministic')
 
-// --- layoutOptions sanity ----------------------------------------------------
-const lo = layoutOptions(true)
-assert.equal(lo.name, 'fcose')
-assert.equal(lo.randomize, false)
-assert.equal(lo.animate, true)
-assert.equal(layoutOptions(false).animate, false)
+// spread: distinct positions, not a ring/line (fcose regression guard)
+{
+  const xs = Object.values(pos1).map((p) => p.x)
+  const ys = Object.values(pos1).map((p) => p.y)
+  assert.ok(Math.max(...xs) - Math.min(...xs) > 40, 'x spread > 40')
+  assert.ok(Math.max(...ys) - Math.min(...ys) > 40, 'y spread > 40')
+}
+
+// multi-component graph must NOT tile into a ring (fcose regression guard)
+{
+  const multi = {
+    nodes: Array.from({ length: 12 }, (_, i) => ({
+      id: `n${i}`,
+      label: `N${i}`,
+      kind: 'person',
+      weight: 5 + i,
+      degree: 1,
+    })),
+    edges: [
+      { id: 'a1', source: 'n0', target: 'n1', kind: 'co_mention', weight: 4, posts: 4 },
+      { id: 'a2', source: 'n2', target: 'n3', kind: 'co_mention', weight: 4, posts: 4 },
+      { id: 'a3', source: 'n4', target: 'n5', kind: 'co_mention', weight: 4, posts: 4 },
+      { id: 'a4', source: 'n6', target: 'n7', kind: 'co_mention', weight: 4, posts: 4 },
+      { id: 'a5', source: 'n8', target: 'n9', kind: 'co_mention', weight: 4, posts: 4 },
+      { id: 'a6', source: 'n10', target: 'n11', kind: 'co_mention', weight: 4, posts: 4 },
+    ],
+  }
+  const mpos = await runLayout(multi)
+  const mx = Object.values(mpos).map((p) => p.x)
+  const my = Object.values(mpos).map((p) => p.y)
+  const spreadX = Math.max(...mx) - Math.min(...mx)
+  const spreadY = Math.max(...my) - Math.min(...my)
+  // A ring of tiles collapses x or y spread relative to the other; require
+  // both axes to carry real spread.
+  assert.ok(spreadX > 100 && spreadY > 100, `2-D spread, got x=${spreadX.toFixed(0)} y=${spreadY.toFixed(0)}`)
+}
+
+// --- layoutOptions: preset descriptor ----------------------------------------
+assert.equal(layoutOptions().name, 'preset')
 
 // --- cytoscape instance still builds headless -------------------------------
 const cy = cytoscape({ headless: true })
@@ -76,4 +109,10 @@ assert.equal(cy.nodes().length, 4)
 assert.equal(cy.edges().length, 2)
 cy.destroy()
 
-console.log('cytoGraph self-check OK —', els.nodes.length, 'nodes,', els.edges.length, 'edges, deterministic fcose')
+console.log(
+  'cytoGraph self-check OK —',
+  els.nodes.length,
+  'nodes,',
+  els.edges.length,
+  'edges, deterministic d3 preset layout, 2-D spread',
+)

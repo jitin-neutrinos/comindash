@@ -6,17 +6,19 @@
  * ESM cannot load without import attributes). All theme/live-color work
  * lives in KnowledgeGraph.jsx's buildStyles().
  *
- * Determinism contract: element positions are seeded with a golden-angle
- * spiral (no RNG) and fcose runs with randomize:false, so the same graph
- * always settles to the same picture — people build a mental map of where
- * things live.
+ * LAYOUT: positions come from forceGraph.js's d3-force `layout()` — the
+ * proven, deterministic, container-independent layout that shipped before
+ * the Cytoscape migration (fcose produced a tile-ring / collapsed column
+ * on this corpus and on narrow viewports; reverted 2026-09-28). The
+ * virtual canvas is 1000x660 and the component fits the settled map to
+ * whatever viewport is viewing it — a phone sees the same map as a
+ * desktop. Cytoscape renders/interacts; d3 positions.
  *
  * Self-check: `node src/components/graph/cytoGraph.test.mjs`
  */
 import cytoscape from 'cytoscape'
-import fcose from 'cytoscape-fcose'
+import { layout as d3Layout } from './forceGraph.js'
 
-cytoscape.use(fcose)
 export { cytoscape }
 
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5))
@@ -60,6 +62,10 @@ export function toElements(graph) {
   const edgesIn = graph?.edges ?? []
   if (!nodesIn.length) return { nodes: [], edges: [] }
 
+  // d3-force settles on the fixed virtual canvas — deterministic and
+  // container-independent (the reason fcose was reverted).
+  const placed = d3Layout(nodesIn, edgesIn, { width: SEED_W, height: SEED_H })
+  const posById = new Map(placed.nodes.map((n) => [n.id, n]))
   const maxWeight = Math.max(...nodesIn.map((n) => n.weight ?? 1), 1)
   const maxEdge = Math.max(...edgesIn.map((e) => e.weight ?? 1), 1)
   const idSet = new Set(nodesIn.map((n) => n.id))
@@ -78,7 +84,7 @@ export function toElements(graph) {
         size: r * 2,
         fsize: r > 15 ? 12 : 11,
       },
-      position: seedPosition(i, nodesIn.length),
+      position: { x: posById.get(n.id)?.x ?? 0, y: posById.get(n.id)?.y ?? 0 },
       classes: [`k-${n.kind ?? 'product'}`, r <= SMALL_R ? 'sm' : ''].filter(Boolean),
     }
   })
@@ -107,53 +113,21 @@ export function toElements(graph) {
 }
 
 /**
- * fcose layout options. `animate` off for reduced-motion/headless — the
- * animated settle IS the entrance choreography, so no separate gsap layer.
+ * Layout descriptor for the component: preset positions from d3-force,
+ * already stamped onto the elements by toElements(). The component runs
+ * this then fits to the viewport; the fit is the entrance motion.
  */
-export function layoutOptions(animate) {
-  return {
-    name: 'fcose',
-    quality: 'proof',
-    randomize: false, // seeded spiral starts -> deterministic
-    animate,
-    animationDuration: 620,
-    animationEasing: 'ease-out',
-    padding: 46,
-    nodeSeparation: 95,
-    idealEdgeLength: (edge) => (edge.data('kind') === 'asserted' ? 165 : 120),
-    edgeElasticity: 0.45,
-    gravity: 0.25,
-    gravityRange: 3.8,
-    numIter: 3000,
-    tile: true,
-    tilingPaddingVertical: 24,
-    tilingPaddingHorizontal: 24,
-  }
+export function layoutOptions() {
+  return { name: 'preset' }
 }
 
 /**
- * Run the layout headless and settle the returned promise with a
- * id -> {x, y} map. Used by the self-check (determinism) — the live
- * component runs the same options on its own instance.
+ * Run the layout headless; resolves id -> {x, y}. Used by the self-check
+ * (determinism) — same d3 positions the live component uses.
  */
 export function runLayout(graph) {
-  return new Promise((resolve, reject) => {
-    let cy
-    try {
-      cy = cytoscape({ elements: toElements(graph), headless: true })
-    } catch (err) {
-      reject(err)
-      return
-    }
-    const layout = cy.layout({ ...layoutOptions(false), animate: false })
-    layout.one('layoutstop', () => {
-      const pos = {}
-      cy.nodes().forEach((n) => {
-        pos[n.id()] = { x: n.position('x'), y: n.position('y') }
-      })
-      cy.destroy()
-      resolve(pos)
-    })
-    layout.run()
-  })
+  const els = toElements(graph)
+  const pos = {}
+  for (const n of els.nodes) pos[n.data.id] = { x: n.position.x, y: n.position.y }
+  return Promise.resolve(pos)
 }
