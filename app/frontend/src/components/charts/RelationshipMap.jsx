@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { alpha, colors } from '../../theme'
 import { gsap } from '../../motion'
-import { ChartSkeleton } from '../Skeletons'
+import { GraphSkeleton } from '../Skeletons'
 import { ChartEmpty } from './chartKit'
 import { layoutGraph } from './relationshipLayout'
 
@@ -44,13 +44,15 @@ export default function RelationshipMap({ graph, loading, height = 520, width = 
         { autoAlpha: 1, duration: 0.5, stagger: 0.02 },
         0.3,
       )
-      return () => tl.kill()
+      // progress(1) before kill: nodes start at autoAlpha 0, so a tooltip
+      // closed and reopened mid-animation would show an empty diagram.
+      return () => tl.progress(1).kill()
     })
     return () => mm.revert()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graph])
 
-  if (loading) return <ChartSkeleton height={height} />
+  if (loading) return <GraphSkeleton height={height} />
   if (!nodes.length) return <ChartEmpty height={height} />
 
   const { placed, edges, fontSize } = layoutGraph(nodes, links, { width, height, pad })

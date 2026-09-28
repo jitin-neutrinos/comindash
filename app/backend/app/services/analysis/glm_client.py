@@ -50,16 +50,14 @@ PRODUCT_GLOSSARY = {
               "extraction and assistant services, batch + single-call APIs for AI-driven workflows.",
     "studio": "Neutrinos Studio — the core app builder: pages, widgets, plugins, "
               "app templates; the IDE most Neutrinos apps are built in.",
-    "modelr": "Modelr — visual service modeling tool (nodes/wires/flows) for "
-              "integrating backends, ESBs, cloud services and databases.",
+    # "modelr" and "components" removed 2026-09-28: posts use "model"/
+    # "component" as plain English words, not product references -- noise.
     "hypha": "Hypha — unified data layer/architecture across on-prem, cloud and "
              "edge sources: object framework, workspace, business object management.",
     "identity_server": "Identity Server (IDS) — OAuth 2.0 + OpenID Connect provider: "
                         "authentication, SSO, token issuance for all Neutrinos apps.",
     "plugins_builder": "Plugins Builder — Studio tool to build custom nodes/plugins "
                        "consumable from Page Designer, SSD and CSD.",
-    "components": "Components — the reusable UI building-block library (Column, "
-                  "Panel, form widgets, etc.) used across Studio-built apps.",
     "data_fabric": "Data Fabric — architectural layer unifying data across sources "
                    "with governed access; object framework, metadata, relationships.",
     "flow_designer": "Flow Designer — page/service flow builder: nodes, lifecycle "

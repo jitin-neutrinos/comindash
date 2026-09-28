@@ -29,6 +29,19 @@ export function usePrefersReducedMotion() {
 /** Imperative prefers-reduced-motion check (inside effects). */
 export const prefersReducedMotion = () => MQL?.matches ?? false
 
+/**
+ * True when an entrance animation is safe to run.
+ *
+ * Browsers freeze requestAnimationFrame in a hidden/background tab, so a tween
+ * that starts from `autoAlpha: 0` never ticks and leaves real content stuck at
+ * `visibility: hidden` until the tab is focused. Content must never depend on
+ * an animation having run, so callers skip the entrance entirely here and let
+ * the element render at its natural CSS state.
+ */
+export const canAnimateEntrance = () =>
+  !prefersReducedMotion() &&
+  (typeof document === 'undefined' || document.visibilityState === 'visible')
+
 /* ---- 1. page-load choreography ----------------------------------------------
  * Pages tag sections with data-anim="header" | "kpi" | "row" | "chart" and
  * attach the returned ref to their root. Runs once per mount (deps).
@@ -38,6 +51,9 @@ export function usePageChoreo(deps = []) {
   useLayoutEffect(() => {
     const root = ref.current
     if (!root) return undefined
+    // Hidden tab => rAF frozen => a fromTo starting at autoAlpha 0 never
+    // completes and the whole page stays invisible. Render plainly instead.
+    if (!canAnimateEntrance()) return undefined
     const mm = gsap.matchMedia()
     mm.add('(prefers-reduced-motion: no-preference)', () => {
       const tl = gsap.timeline()
@@ -72,7 +88,9 @@ export function usePageChoreo(deps = []) {
           kpis.length || rows.length ? '-=0.25' : 0.15,
         )
       }
-      return () => tl.kill()
+      // progress(1) before kill: this timeline starts the page's content at
+      // autoAlpha 0, so a mid-flight kill would leave the whole page blank.
+      return () => tl.progress(1).kill()
     })
     return () => mm.revert()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -98,7 +116,14 @@ export function useGsapPageTransition() {
       window.scrollTo(0, 0)
       setView(pending.current)
     }
-    tween.current?.kill()
+    // Kill any superseded fade and reset visibility before starting a new
+    // one: a rapid second navigation would otherwise start the fresh fade
+    // from a partly-faded page. // motion-guard: superseded fade, reset below
+    if (tween.current) {
+      tween.current.kill()
+      tween.current = null
+      if (el) gsap.set(el, { autoAlpha: 1 })
+    }
     if (el && !prefersReducedMotion()) {
       tween.current = gsap.to(el, {
         autoAlpha: 0,
@@ -109,7 +134,16 @@ export function useGsapPageTransition() {
     } else {
       commit()
     }
-    return () => tween.current?.kill()
+    // The out-tween ends at autoAlpha 0. progress(1) would therefore *hide*
+    // the page; restore it to visible instead, and commit the pending route
+    // so an interrupted transition still lands somewhere coherent.
+    return () => {
+      if (tween.current) {
+        tween.current.kill() // motion-guard: fade-OUT; restored below
+        tween.current = null
+        if (el) gsap.set(el, { autoAlpha: 1 })
+      }
+    }
   }, [location, view])
 
   return view
@@ -133,6 +167,11 @@ export function useCountUp(ref, value, format, { duration = 0.9 } = {}) {
       return undefined
     }
     const state = { v: from }
+    // Never paint a placeholder the animation is responsible for correcting:
+    // in a hidden tab rAF is frozen, the tween never runs, and the KPI would
+    // read a permanent 0. Start from the truth, then animate from `from`.
+    el.textContent = fmt(value)
+    if (!canAnimateEntrance()) return undefined
     el.textContent = fmt(from)
     const tween = gsap.to(state, {
       v: value,
@@ -143,7 +182,12 @@ export function useCountUp(ref, value, format, { duration = 0.9 } = {}) {
         el.textContent = fmt(state.v)
       },
     })
-    return () => tween.kill()
+    // progress(1) before kill so an interrupted count-up lands on the real
+    // number rather than freezing part-way.
+    return () => {
+      tween.progress(1).kill()
+      el.textContent = fmt(value)
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value, ref])
 }

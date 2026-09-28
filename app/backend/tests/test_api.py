@@ -231,8 +231,10 @@ class TestInsightsRoutes:
         r = await client.get("/api/pain-points")
         assert [c["id"] for c in r.json()] == [insight_id]
 
-        # no relationships ingested → empty graph
-        r = await client.get("/api/relationships")
+        # no relationships ingested → empty graph.
+        # The default view is the knowledge graph (which also aggregates
+        # extractions); the legacy asserted-only shape lives at ?view=asserted.
+        r = await client.get("/api/relationships", params={"view": "asserted"})
         assert r.json() == {"nodes": [], "edges": []}
 
     async def test_relationship_graph(self, client, session):
@@ -267,12 +269,16 @@ class TestInsightsRoutes:
             headers={"X-Ingest-Token": INGEST_TOKEN},
         )
         assert r.status_code == 200
+        # Default view = knowledge graph. Asserted relationships land as
+        # kind="asserted" edges whose weight carries the model's strength;
+        # the endpoints resolve onto graph nodes when they name entities.
         g = (await client.get("/api/relationships")).json()
-        assert len(g["nodes"]) == 2
-        assert len(g["edges"]) == 1
-        assert g["edges"][0]["strength"] == 0.8
-        labels = {n["label"] for n in g["nodes"]}
-        assert labels == {"Debugger", "deployment"}
+        asserted = [e for e in g["edges"] if e["kind"] == "asserted"]
+        assert len(asserted) == 1
+        assert asserted[0]["weight"] == 0.8
+        node_ids = {n["id"] for n in g["nodes"]}
+        assert asserted[0]["source"] in node_ids
+        assert asserted[0]["target"] in node_ids
 
 
 class TestJobs:

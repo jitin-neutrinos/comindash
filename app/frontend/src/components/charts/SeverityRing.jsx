@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from 'react'
 import { alpha, colors } from '../../theme'
 import { gsap } from '../../motion'
-import { ChartSkeleton } from '../Skeletons'
+import { DonutSkeleton } from '../Skeletons'
 import { ChartEmpty } from './chartKit'
 
 /**
@@ -28,12 +28,14 @@ export default function SeverityRing({ data, loading, size = 200, thickness = 18
           { strokeDashoffset: final, duration: 0.9, ease: 'power2.inOut', delay: i * 0.12 },
         )
       })
-      return () => tweens.forEach((t) => t.kill())
+      // progress(1) before kill so an interrupted sweep lands on the real
+      // arc length instead of freezing part-way round.
+      return () => tweens.forEach((t) => t.progress(1).kill())
     })
     return () => mm.revert()
   }, [total, data])
 
-  if (loading) return <ChartSkeleton height={size} />
+  if (loading) return <DonutSkeleton height={size} />
   if (!total) return <ChartEmpty height={size} />
 
   const r = (size - thickness) / 2

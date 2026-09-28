@@ -163,7 +163,11 @@ async def test_full_stub_pipeline(client, session):
     assert detail["relationships"][0]["subject_value"] == "Studio"
 
     graph = (await client.get("/api/relationships")).json()
-    assert any(e["strength"] == 0.9 for e in graph["edges"])
+    # Knowledge-graph view: asserted relationship edges carry `weight`
+    # (the model's strength), not the legacy `strength` field.
+    assert any(
+        e.get("kind") == "asserted" and e["weight"] == 0.9 for e in graph["edges"]
+    )
 
     volume = (
         await client.get("/api/trends", params={"metric": "volume", "days": 7})

@@ -1,7 +1,7 @@
 import { useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Info } from 'lucide-react'
-import { gsap } from '../motion'
+import { gsap, canAnimateEntrance } from '../motion'
 import { METRIC_INFO, buildGraph } from '../metricInfo'
 import RelationshipMap from './charts/RelationshipMap'
 
@@ -66,6 +66,13 @@ export default function MetricInfo({ metricKey, accent, className = '' }) {
   useLayoutEffect(() => {
     if (!open || !panelRef.current) return undefined
     const el = panelRef.current
+    // A hidden tab freezes rAF, so a tween starting at autoAlpha 0 would
+    // leave the tooltip permanently blank. Show it as-is instead.
+    if (!canAnimateEntrance()) {
+      gsap.set(el, { autoAlpha: 1, y: 0 })
+      gsap.set(el.querySelectorAll('[data-sec]'), { autoAlpha: 1, y: 0 })
+      return undefined
+    }
     const mm = gsap.matchMedia()
     mm.add('(prefers-reduced-motion: no-preference)', () => {
       const tl = gsap.timeline()
@@ -76,7 +83,9 @@ export default function MetricInfo({ metricKey, accent, className = '' }) {
         { autoAlpha: 1, y: 0, duration: 0.3, stagger: 0.06 },
         0,
       )
-      return () => tl.kill()
+      // progress(1) before kill so a tooltip reopened mid-fade is fully
+      // visible rather than stranded at autoAlpha 0.
+      return () => tl.progress(1).kill()
     })
     return () => mm.revert()
   }, [open])

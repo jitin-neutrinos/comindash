@@ -15,13 +15,15 @@
   --neu-midnight-blue: #00053D;  /* deep background / dark surface */
   --neu-black:         #000000;  /* body copy text */
 
-  /* --- ACCENT COLORS -----------------------------------------------------
-     Add energy, never dominate. Use ONE accent at a time alongside the core
-     colors. Do NOT combine two accents in the same layout (charts excepted). */
-  --neu-celeste:  #00DEEF;  /* Celeste Blue / "Energy Blue" */
-  --neu-mint:     #00EFAD;  /* Mint Green / "Energy Green" */
-  --neu-salmon:   #FB327E;  /* Salmon / Coral */
-  --neu-iris:     #9A67FB;  /* Iris / Lilac */
+  /* --- ACCENT COLORS (blue-only policy, 2026-09-28) -----------------------
+     The dashboard renders Neutrinos Blue + neutrals ONLY. The four accent
+     slots are re-pointed to tints/shades of brand blue so any var() consumer
+     stays on-palette. Original brand accent values are documented in
+     tokens.json but are not rendered anywhere in this app. */
+  --neu-celeste:  #4D94FF;  /* blue tint (mix blue/white 30%) */
+  --neu-mint:     #003D99;  /* blue shade (mix blue/black 40%) */
+  --neu-salmon:   #00053D;  /* midnight (alert/dark end of ramp) */
+  --neu-iris:     #0052CC;  /* blue shade (mix blue/black 20%) */
 
   /* --- SEMANTIC ROLES (light theme, the default) ------------------------- */
   --neu-bg:            var(--neu-white);

@@ -1,6 +1,6 @@
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { semantics } from '../../theme'
-import { ChartSkeleton } from '../Skeletons'
+import { DonutSkeleton } from '../Skeletons'
 import PillTag from '../PillTag'
 import { BrandTooltip, ChartEmpty, useChartAnimation } from './chartKit'
 
@@ -11,7 +11,7 @@ import { BrandTooltip, ChartEmpty, useChartAnimation } from './chartKit'
  */
 export default function PriorityDistribution({ data, loading, height = 280 }) {
   const animated = useChartAnimation()
-  if (loading) return <ChartSkeleton height={height} />
+  if (loading) return <DonutSkeleton height={height} />
   const rows = (data ?? []).filter((d) => d.value > 0)
   if (!rows.length) return <ChartEmpty height={height} />
   const total = rows.reduce((sum, d) => sum + d.value, 0)

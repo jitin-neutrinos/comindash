@@ -4,7 +4,6 @@
 import tokens from './brand/tokens.json'
 
 const core = tokens.color.core
-const accent = tokens.color.accent
 
 export const colors = {
   white: core.white.hex,
@@ -12,10 +11,26 @@ export const colors = {
   mist: core.mistGray.hex,
   midnight: core.midnightBlue.hex,
   black: core.black.hex,
-  celeste: accent.celesteBlue.hex,
-  mint: accent.mintGreen.hex,
-  salmon: accent.salmon.hex,
-  iris: accent.iris.hex,
+  // Accent slots retained for API compatibility but re-pointed (2026-09-28)
+  // to tints/shades of Neutrinos Blue — the dashboard renders brand blue
+  // + brand neutrals ONLY. mixHex below derives every step from the token.
+  celeste: mixHex(core.neutrinosBlue.hex, core.white.hex, 0.3),
+  mint: mixHex(core.neutrinosBlue.hex, core.black.hex, 0.4),
+  salmon: core.midnightBlue.hex,
+  iris: mixHex(core.neutrinosBlue.hex, core.black.hex, 0.2),
+}
+
+/** Linear mix of two hex colors: t=0 → a, t=1 → b. */
+function mixHex(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16)
+  const ch = (sa, sb) => Math.round(sa + (sb - sa) * t)
+  const toHex = (n) => n.toString(16).padStart(2, '0')
+  return (
+    '#' +
+    toHex(ch((pa >> 16) & 255, (pb >> 16) & 255)) +
+    toHex(ch((pa >> 8) & 255, (pb >> 8) & 255)) +
+    toHex(ch(pa & 255, pb & 255))
+  )
 }
 
 /** rgba() derivation of a brand hex — the only place alpha colors are computed. */
@@ -28,21 +43,28 @@ export const alpha = (hex, a) => {
 export const fontStack =
   '"Poppins", "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif'
 
-// Semantic mappings (charts are the one brand-sanctioned place accents may mix)
-// Severity = pain-point severity ONLY (Salmon marks high-severity pain).
-// Priority is a neutral classification → Neutrinos Blue shade ramp, no Salmon.
+// Semantic mappings — blue-only ramp (dark = strongest/alert, light = calm).
+// Severity: darkest step marks high-severity pain; low severity is the light tint.
 export const semantics = {
-  severity: { high: colors.salmon, medium: colors.blue, low: colors.mint },
+  severity: { high: colors.salmon, medium: colors.blue, low: colors.celeste },
   priority: { high: colors.midnight, medium: colors.blue, low: colors.celeste },
   status: { active: colors.blue, resolved: colors.mint, superseded: colors.iris },
   run: {
-    done: colors.mint,
+    done: colors.celeste,
     running: colors.blue,
     failed: colors.salmon,
     skipped: colors.iris,
     pending: alpha(colors.midnight, 0.35),
   },
-  sentiment: { pos: colors.mint, neu: alpha(colors.midnight, 0.4), neg: colors.salmon },
+  sentiment: { pos: colors.blue, neu: alpha(colors.midnight, 0.4), neg: colors.salmon },
+  // Insight types distinguish by position on the single blue ramp.
+  insightType: {
+    pain_point: colors.salmon,
+    trend: colors.blue,
+    anomaly: colors.mint,
+    relationship: colors.celeste,
+    recommendation: colors.iris,
+  },
 }
 
 // Card chrome tokens (spec: task-frontend-revamp — premium BI surfaces)
@@ -51,10 +73,10 @@ export const lines = {
   grid: '#EEF1F5', // hairline chart gridlines
 }
 
-// Chart palette — brand-first, accents allowed per brand chart exception
+// Chart palette — single-hue blue ramp, light → dark (brand blue only)
 export const chart = {
   primary: colors.blue,
-  series: [colors.blue, colors.celeste, colors.mint, colors.salmon, colors.iris],
+  series: [colors.celeste, colors.blue, colors.iris, colors.mint, colors.salmon],
   grid: lines.grid,
   axis: alpha(colors.midnight, 0.55),
 }
@@ -83,6 +105,12 @@ export const tailwindTheme = {
     line: lines.card,
     hairline: lines.grid,
     muted: '#4A4A4A', // --neu-text-muted from tokens.css
+    gray: {
+      // Brand-blue-only policy: Tailwind preflight defaults (placeholder
+      // gray-400, default border gray-200) re-pointed to brand neutrals.
+      200: '#E4E4E4',
+      400: '#4A4A4A',
+    },
   },
   fontFamily: { sans: [fontStack] },
   fontSize: {

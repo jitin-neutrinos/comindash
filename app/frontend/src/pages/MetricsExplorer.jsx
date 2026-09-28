@@ -1,6 +1,17 @@
+// Metrics explorer — measured intelligence, not just charts.
+//
+// The old page drew a chart and narrated it client-side from the same rows:
+// "volume is up 35%" is true but says nothing about whether that is normal,
+// when it started, or what to do. This one pairs every chart with server-side
+// measurements the browser cannot derive honestly — robust anomaly detection,
+// a change point, half-window movers, mix drift — and an on-demand consultant
+// brief grounded in exactly those numbers.
+//
+// Layout follows the reader's question order:
+//   headline numbers → the chart → what changed (infographics) → what it means
 import { useMemo, useState } from 'react'
-import { getOverview, getTrends, useApi } from '../api'
-import { colors, semantics } from '../theme'
+import { getMetricIntel, getOverview, getTrends, useApi } from '../api'
+import { colors, semantics, alpha } from '../theme'
 import { usePageChoreo } from '../motion'
 import FrameCard from '../components/FrameCard'
 import MetricInfo from '../components/MetricInfo'
@@ -9,14 +20,25 @@ import TrendLine from '../components/charts/TrendLine'
 import SentimentArea from '../components/charts/SentimentArea'
 import PriorityDistribution from '../components/charts/PriorityDistribution'
 import EntityBar from '../components/charts/EntityBar'
+import MetricBrief from '../components/metrics/MetricBrief'
+import {
+  AnomalyPanel,
+  CategoryPanel,
+  DriftPanel,
+  HotTopicsPanel,
+  MoversPanel,
+  VolumeShapePanel,
+} from '../components/metrics/panels'
+import { METRICS, metricMeta, pct, signedPct, shortDate } from '../components/metrics/vocab'
 
-const METRICS = [
-  { key: 'volume', label: 'Post volume', info: 'trendVolume' },
-  { key: 'sentiment', label: 'Sentiment', info: 'trendSentiment' },
-  { key: 'priority', label: 'Priority mix', info: 'trendPriority' },
-  { key: 'entity', label: 'Entities', info: 'trendEntity' },
-]
 const WINDOWS = [7, 30, 90]
+
+const INFO_KEY = {
+  volume: 'trendVolume',
+  sentiment: 'trendSentiment',
+  priority: 'trendPriority',
+  entity: 'trendEntity',
+}
 
 const HEALTH_COLOR = {
   healthy: semantics.run.done,
@@ -24,102 +46,85 @@ const HEALTH_COLOR = {
   running: semantics.run.running,
 }
 
-const pct = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0)
-
-/** Per-tab narrative + supporting numbers, all derived from the same trend
- *  rows and overview totals the chart above already renders — nothing here
- *  is invented. One function, branched per metric, beats four near-duplicate
- *  components for four shapes of the same "insight panel" idea. */
-function computeTabInsight(metric, rows, ov, priorityData, entityData) {
-  const r = rows ?? []
-  const mid = Math.floor(r.length / 2)
+/** The four numbers that lead the page, per metric.
+ *
+ *  Chosen so each one can change what a reader does next — not four views of
+ *  the same total. Values come from the intel payload; nothing is recomputed
+ *  here, so the headline can never disagree with the panels below it. */
+function headlineStats(metric, intel) {
+  if (!intel) return []
 
   if (metric === 'volume') {
-    const total = r.reduce((s, d) => s + d.count, 0)
-    const busiest = r.reduce((b, d) => (d.count > (b?.count ?? -1) ? d : b), null)
-    const firstHalf = r.slice(0, mid).reduce((s, d) => s + d.count, 0)
-    const secondHalf = r.slice(mid).reduce((s, d) => s + d.count, 0)
-    const growth = firstHalf > 0 ? Math.round(((secondHalf - firstHalf) / firstHalf) * 100) : null
-    const narrative =
-      total > 0
-        ? `${total.toLocaleString()} posts in this window` +
-          (busiest ? `, busiest on ${busiest.date} (${busiest.count} posts)` : '') +
-          '. ' +
-          (growth === null
-            ? 'Not enough history yet to read a trend.'
-            : growth >= 0
-              ? `Volume is up ${growth}% versus the first half of the window.`
-              : `Volume is down ${Math.abs(growth)}% versus the first half of the window.`)
-        : 'No posts recorded in this window yet.'
-    return {
-      highlight: { label: 'Posts in window', value: total.toLocaleString() },
-      stats: [
-        { label: 'Busiest day', value: busiest ? `${busiest.date} · ${busiest.count}` : '—' },
-        { label: 'Vs first half', value: growth === null ? '—' : `${growth >= 0 ? '+' : ''}${growth}%` },
-        { label: 'All-time posts', value: (ov?.totalPosts ?? 0).toLocaleString() },
-      ],
-      narrative,
-    }
+    return [
+      { label: 'Posts', value: Math.round(intel.total).toLocaleString(), sub: `${intel.dailyAvg}/day` },
+      {
+        label: 'Vs first half',
+        value: intel.change === null ? '—' : signedPct(intel.change),
+        sub: intel.change === null ? 'no baseline' : `${intel.firstHalfRate} → ${intel.secondHalfRate}/day`,
+        tone: intel.change === null ? null : intel.change >= 0 ? 'good' : 'bad',
+      },
+      { label: 'Active authors', value: intel.activeAuthors.toLocaleString(), sub: 'distinct' },
+      {
+        label: 'Quiet days',
+        value: intel.quietDays,
+        sub: intel.quietDays ? 'no posts at all' : 'posted every day',
+        tone: intel.quietDays > intel.window.days / 3 ? 'bad' : null,
+      },
+    ]
   }
 
-  if (metric === 'sentiment') {
-    const pos = r.reduce((s, d) => s + d.pos, 0)
-    const neu = r.reduce((s, d) => s + d.neu, 0)
-    const neg = r.reduce((s, d) => s + d.neg, 0)
-    const total = pos + neu + neg
-    const avgOf = (arr) => (arr.length ? arr.reduce((s, d) => s + d.avg, 0) / arr.length : 0)
-    const shift = avgOf(r.slice(mid)) - avgOf(r.slice(0, mid))
-    const narrative =
-      total > 0
-        ? `${pct(pos, total)}% positive, ${pct(neu, total)}% neutral, ${pct(neg, total)}% negative across ${total.toLocaleString()} labelled posts. ` +
-          (Math.abs(shift) < 0.02
-            ? 'Mood has held steady across the window.'
-            : shift > 0
-              ? 'Mood is trending more positive toward the end of the window.'
-              : 'Mood is trending more negative toward the end of the window — worth cross-checking the pain-point list.')
-        : 'No sentiment-labelled posts in this window yet.'
-    return {
-      highlight: { label: 'Avg sentiment', value: (ov?.avgSentiment ?? 0).toFixed(2) },
-      stats: [
-        { label: 'Positive', value: `${pct(pos, total)}%` },
-        { label: 'Neutral', value: `${pct(neu, total)}%` },
-        { label: 'Negative', value: `${pct(neg, total)}%` },
-      ],
-      narrative,
-    }
+  if (metric === 'sentiment' || metric === 'priority') {
+    const watchKey = metric === 'sentiment' ? 'neg' : 'high'
+    const watchLabel = metric === 'sentiment' ? 'Negative' : 'High priority'
+    const drift = intel.drift?.[watchKey]
+    return [
+      {
+        label: `${watchLabel} share`,
+        value: pct(intel.shares[watchKey]),
+        sub: `${Math.round(intel.totals[watchKey]).toLocaleString()} posts`,
+        tone: intel.shares[watchKey] > 0.3 ? 'bad' : null,
+      },
+      {
+        label: 'Mix shift',
+        value: drift ? signedPct(drift.delta, 1) : '—',
+        sub: drift ? `${pct(drift.before)} → ${pct(drift.after)}` : 'no baseline',
+        tone: drift ? (drift.delta > 0.02 ? 'bad' : drift.delta < -0.02 ? 'good' : null) : null,
+      },
+      { label: 'Labelled posts', value: intel.labelledPosts.toLocaleString(), sub: 'in window' },
+      {
+        label: 'Model confidence',
+        value: pct(intel.avgConfidence),
+        sub: 'average on this slice',
+        tone: intel.avgConfidence < 0.6 ? 'bad' : null,
+      },
+    ]
   }
 
-  if (metric === 'priority') {
-    const total = priorityData.reduce((s, d) => s + d.value, 0)
-    const high = priorityData.find((d) => d.name === 'High')?.value ?? 0
-    const narrative =
-      total > 0
-        ? `${pct(high, total)}% of posts in this window are high priority (${high.toLocaleString()} of ${total.toLocaleString()}). ` +
-          `${(ov?.highPriorityCount ?? 0).toLocaleString()} posts are high priority across the whole corpus — that is the backlog signal to watch.`
-        : 'No priority-labelled posts in this window yet.'
-    return {
-      highlight: { label: 'High priority share', value: `${pct(high, total)}%` },
-      stats: priorityData.map((d) => ({ label: d.name, value: `${d.value.toLocaleString()} (${pct(d.value, total)}%)` })),
-      narrative,
-    }
-  }
+  const top = intel.top?.[0]
+  return [
+    { label: 'Mentions', value: Math.round(intel.totalMentions).toLocaleString(), sub: 'entity references' },
+    { label: 'Distinct entities', value: intel.distinctEntities.toLocaleString(), sub: 'unique' },
+    { label: 'Most mentioned', value: top?.label ?? '—', sub: top ? `${Math.round(top.count)} posts` : '' },
+    { label: 'Product share', value: pct(intel.productShare), sub: 'name a Neutrinos product' },
+  ]
+}
 
-  // entity
-  const top = entityData[0] ?? null
-  const totalMentions = entityData.reduce((s, d) => s + d.count, 0)
-  const byLabel = {}
-  r.filter((d) => d.label).forEach((d) => {
-    byLabel[d.entityLabel] = (byLabel[d.entityLabel] ?? 0) + d.count
-  })
-  const narrative = top
-    ? `"${top.label}" is the most-mentioned entity this window, with ${top.count.toLocaleString()} mentions. ` +
-      `Top ${entityData.length} entities account for ${totalMentions.toLocaleString()} mentions across ${Object.keys(byLabel).length} category types.`
-    : 'No entities extracted in this window yet.'
-  return {
-    highlight: { label: 'Top entity', value: top ? top.label : '—' },
-    stats: Object.entries(byLabel).map(([label, count]) => ({ label, value: count.toLocaleString() })),
-    narrative,
-  }
+function StatCard({ stat }) {
+  const tone =
+    stat.tone === 'bad' ? colors.salmon : stat.tone === 'good' ? colors.mint : undefined
+  return (
+    <div className="rounded-xl border border-hairline p-3.5">
+      <p className="text-caption font-light text-muted">{stat.label}</p>
+      <p
+        className="mt-1 truncate text-h4 font-semibold tabular-nums"
+        style={tone ? { color: tone } : undefined}
+        title={String(stat.value)}
+      >
+        {stat.value}
+      </p>
+      {stat.sub ? <p className="mt-0.5 truncate text-caption text-muted">{stat.sub}</p> : null}
+    </div>
+  )
 }
 
 export default function MetricsExplorer() {
@@ -127,14 +132,27 @@ export default function MetricsExplorer() {
   const [metric, setMetric] = useState('volume')
   const [days, setDays] = useState(30)
 
+  // The chart keeps its original data source — it already worked, and the
+  // chart components expect that shape.
   const { data, loading } = useApi(() => getTrends(metric, days), { deps: [metric, days] })
   const { data: ov } = useApi(getOverview)
+  // The intelligence layer is a separate call: it measures things the trend
+  // rows cannot express (anomaly scores, change point, movers, drift).
+  const { data: intel, loading: intelLoading } = useApi(() => getMetricIntel(metric, days), {
+    deps: [metric, days],
+  })
 
-  const active = METRICS.find((m) => m.key === metric)
+  const meta = metricMeta(metric)
 
-  const pill = (active) =>
+  // `intel` lags a tab change by one render: `metric` flips instantly, the
+  // fetch resolves later. Reading last tab's payload with this tab's keys is
+  // how `shares.neg` came back undefined — so treat a mismatched payload as
+  // "not loaded yet" rather than defending against it at every access site.
+  const intelReady = intel?.metric === metric ? intel : null
+
+  const pill = (isActive) =>
     `rounded-pill px-4 py-1.5 text-small font-medium transition-colors ${
-      active ? 'bg-blue text-white' : 'bg-white text-black/70 hover:text-blue'
+      isActive ? 'bg-blue text-white' : 'bg-white text-black/70 hover:text-blue'
     }`
 
   const priorityData = useMemo(
@@ -154,7 +172,7 @@ export default function MetricsExplorer() {
     [data],
   )
 
-  const insight = computeTabInsight(metric, data, ov, priorityData, entityData)
+  const stats = headlineStats(metric, intelReady)
 
   return (
     <div ref={page} className="space-y-8">
@@ -164,18 +182,22 @@ export default function MetricsExplorer() {
             <h1 className="text-h2 font-semibold tracking-tight">Metrics explorer</h1>
             <MetricInfo metricKey="metricsPage" />
           </div>
-          <p className="mt-1 font-light text-muted">
-            Trends, pipeline runs and model confidence — the metrics room behind every other page.
-          </p>
+          <p className="mt-1 font-light text-muted">{meta.question}</p>
         </div>
-        {ov && (
-          <PillTag color={HEALTH_COLOR[ov.pipelineHealth] ?? semantics.run.pending} dot>
-            Pipeline {ov.pipelineHealth}
-          </PillTag>
-        )}
+        <div className="flex items-center gap-2">
+          {intelReady?.window?.end ? (
+            <span className="text-caption text-muted">
+              through {shortDate(intelReady.window.end)}
+            </span>
+          ) : null}
+          {ov && (
+            <PillTag color={HEALTH_COLOR[ov.pipelineHealth] ?? semantics.run.pending} dot>
+              Pipeline {ov.pipelineHealth}
+            </PillTag>
+          )}
+        </div>
       </header>
 
-      {/* Trend explorer — the one thing that already worked, kept intact */}
       <div data-anim="row" className="flex flex-wrap items-center justify-between gap-4">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="Metric">
           {METRICS.map((m) => (
@@ -200,45 +222,88 @@ export default function MetricsExplorer() {
         </div>
       </div>
 
+      {/* Headline numbers: the four facts that change what you do next. */}
+      <div data-anim="row" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {intelLoading && !intelReady
+          ? [0, 1, 2, 3].map((i) => (
+              <div key={i} className="rounded-xl border border-hairline p-3.5">
+                <div className="shimmer h-3 w-1/2 rounded-sm" />
+                <div className="shimmer mt-2 h-6 w-2/3 rounded-sm" />
+              </div>
+            ))
+          : stats.map((s) => <StatCard key={s.label} stat={s} />)}
+      </div>
+
       <div data-anim="chart">
         <FrameCard
-          title={`${active?.label} — last ${days} days`}
+          title={`${meta.label} — last ${days} days`}
           accent={colors.celeste}
           lift={false}
-          infoKey={active?.info}
+          infoKey={INFO_KEY[metric]}
         >
           {metric === 'volume' && <TrendLine data={data} loading={loading} />}
           {metric === 'sentiment' && <SentimentArea data={data} loading={loading} />}
           {metric === 'priority' && <PriorityDistribution data={priorityData} loading={loading} />}
           {metric === 'entity' && <EntityBar data={entityData} loading={loading} />}
+
+          {/* Anomaly dates called out under the chart, so a spike in the line
+              has a name and a score rather than being left to the eye. */}
+          {intelReady?.anomalies?.length ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-hairline pt-3">
+              <span className="text-caption text-muted">Flagged days:</span>
+              {intelReady.anomalies.slice(0, 4).map((a) => (
+                <span
+                  key={a.date}
+                  className="rounded-pill px-2 py-0.5 text-caption font-medium"
+                  style={{
+                    backgroundColor: alpha(
+                      a.direction === 'spike' ? colors.salmon : colors.blue,
+                      0.12,
+                    ),
+                    color: a.direction === 'spike' ? colors.salmon : colors.blue,
+                  }}
+                >
+                  {a.direction === 'spike' ? '↑' : '↓'} {shortDate(a.date)}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </FrameCard>
       </div>
 
-      {/* Per-tab insight + highlight — content changes with the metric tab above */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div data-anim="chart" className="lg:col-span-2">
-          <FrameCard title={`${active?.label} insights`} accent={colors.celeste} lift={false} infoKey="tabInsight">
-            <p className="text-body font-light text-muted">{insight.narrative}</p>
-            <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {insight.stats.map((s) => (
-                <div key={s.label} className="rounded-xl border border-hairline p-3">
-                  <dt className="text-caption font-light text-muted">{s.label}</dt>
-                  <dd className="mt-1 text-h4 font-semibold tabular-nums">{s.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </FrameCard>
+      {/* What changed — measured, per metric. */}
+      {intelLoading && !intelReady ? (
+        <div className="grid gap-6 lg:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-2xl border border-line bg-white p-5">
+              <div className="shimmer h-4 w-1/3 rounded-sm" />
+              <div className="shimmer mt-4 h-24 w-full rounded-sm" />
+            </div>
+          ))}
         </div>
+      ) : intelReady ? (
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div data-anim="chart" className="min-w-0 space-y-6 lg:col-span-2">
+            {metric === 'volume' ? <VolumeShapePanel intel={intelReady} /> : null}
+            {metric === 'sentiment' || metric === 'priority' ? (
+              <DriftPanel intel={intelReady} />
+            ) : null}
+            {metric === 'priority' ? <HotTopicsPanel intel={intelReady} /> : null}
+            {metric === 'entity' ? (
+              <>
+                <MoversPanel intel={intelReady} />
+                <CategoryPanel intel={intelReady} />
+              </>
+            ) : null}
+            <AnomalyPanel intel={intelReady} />
+          </div>
 
-        <div data-anim="chart">
-          <FrameCard title="Tab highlight" accent={colors.midnight} lift={false} infoKey="tabHighlights">
-            <p className="text-caption font-light text-muted">{insight.highlight.label}</p>
-            <p className="mt-1 text-h1 font-semibold leading-none tracking-tight tabular-nums">
-              {insight.highlight.value}
-            </p>
-          </FrameCard>
+          {/* What it means — the consultant's read, on demand. */}
+          <div data-anim="chart" className="lg:sticky lg:top-6 lg:self-start">
+            <MetricBrief metric={metric} days={days} intel={intelReady} />
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }

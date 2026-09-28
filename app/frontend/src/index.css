@@ -15,9 +15,9 @@
     outline: 2px solid var(--neu-blue);
     outline-offset: 2px;
   }
-  /* Dark rail/drawer surfaces: Celeste focus ring for visible contrast. */
+  /* Dark rail/drawer surfaces: white focus ring (brand core on dark). */
   aside :focus-visible {
-    outline-color: var(--neu-celeste);
+    outline-color: var(--neu-white);
   }
 }
 
@@ -55,7 +55,36 @@ aside nav::-webkit-scrollbar-thumb {
   animation: neu-shimmer 1.6s linear infinite;
 }
 
+/* Premium surface lift (components/Surface.jsx <Bezel lift>). Declared once
+   globally rather than as a per-instance <style> tag, which would duplicate
+   the same rule for every card on screen. */
+.bezel-lift {
+  transition:
+    box-shadow 420ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.bezel-lift:hover,
+.bezel-lift:focus-within {
+  transform: translateY(-2px);
+  box-shadow:
+    0 2px 4px color-mix(in srgb, var(--neu-midnight-blue) 5%, transparent),
+    0 24px 48px -20px color-mix(in srgb, var(--neu-midnight-blue) 22%, transparent);
+}
+
+/* Long-form insight prose: measured line length and calm rhythm. */
+.prose-brief p {
+  margin-bottom: 0.9em;
+  line-height: 1.75;
+}
+.prose-brief p:last-child {
+  margin-bottom: 0;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .bezel-lift:hover,
+  .bezel-lift:focus-within {
+    transform: none;
+  }
   html {
     scroll-behavior: auto;
   }

@@ -5,12 +5,15 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.models import Extraction, Post, PriorityResult, Sentiment, SentimentResult
 from app.schemas import TrendPointOut
+from app.services.metrics_brief import get_brief
+from app.services.metrics_intel import load_metric_intel
 
 router = APIRouter(prefix="/api", tags=["trends"])
 
@@ -102,3 +105,44 @@ async def trends(
         )
         for text, label, n in rows
     ]
+
+
+# --- live metric intelligence -------------------------------------------------
+#
+# /trends answers "what are the numbers?"; these answer "is this normal, and
+# what changed?" — anomalies, change points, movers and mix drift measured from
+# the same rows the chart renders, plus an on-demand grounded brief.
+
+
+class MetricBriefRequest(BaseModel):
+    refresh: bool = False
+    days: int = 30
+
+
+@router.get("/metrics/intel")
+async def metrics_intel(
+    metric: str = Query("volume"),
+    days: int = Query(30, ge=7, le=365),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    if metric not in METRICS:
+        raise HTTPException(
+            status_code=422, detail=f"metric must be one of {sorted(METRICS)}"
+        )
+    return await load_metric_intel(session, metric, days=days)
+
+
+@router.post("/metrics/{metric}/brief")
+async def metrics_brief(
+    metric: str,
+    body: MetricBriefRequest | None = None,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    if metric not in METRICS:
+        raise HTTPException(
+            status_code=422, detail=f"metric must be one of {sorted(METRICS)}"
+        )
+    req = body or MetricBriefRequest()
+    days = max(7, min(req.days, 365))
+    intel = await load_metric_intel(session, metric, days=days)
+    return await get_brief(session, intel, refresh=req.refresh)

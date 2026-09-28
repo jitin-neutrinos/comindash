@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "d3-force": "^3.0.0",
     "date-fns": "^4.4.0",
     "gsap": "3.12.5",
     "lucide-react": "^1.44.0",

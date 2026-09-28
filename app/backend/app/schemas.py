@@ -32,6 +32,21 @@ class HealthOut(BaseModel):
 # --- Overview -----------------------------------------------------------------
 
 
+class DeltaOut(BaseModel):
+    """A measured change between a recent window and the one before it.
+
+    ``value`` is the current figure, ``previous`` the same figure one window
+    back, ``direction`` one of up/down/flat. ``pct`` is None when there is no
+    baseline to divide by — rendering "+∞%" or a silent 0 would both lie.
+    """
+
+    value: float
+    previous: float
+    pct: float | None = None
+    direction: str = "flat"
+    window_days: int = 14
+
+
 class OverviewOut(BaseModel):
     model_config = ConfigDict(protected_namespaces=())
 
@@ -42,6 +57,10 @@ class OverviewOut(BaseModel):
     active_pain_points: int
     model_confidence: float
     pipeline_health: dict[str, LastRunOut]
+    # Movement for the headline KPIs. Empty dict when the corpus is too young
+    # to have two comparable windows.
+    deltas: dict[str, DeltaOut] = {}
+    last_post_at: datetime | None = None
 
 
 # --- Insights -------------------------------------------------------------------
@@ -68,6 +87,9 @@ class RelationshipOut(ORMModel):
 
 class InsightOut(ORMModel):
     id: int
+    # Canonical URL segment (`<slug>-<id>`), derived from the title server-side
+    # so clients never have to reimplement slugification and drift from it.
+    slug: str = ""
     insight_type: str
     title: str
     body: str
@@ -146,11 +168,18 @@ class PostOut(ORMModel):
     topic_id: int
     post_number: int
     author_hash: str
-    body_text: str
+    # An excerpt, not the body. Post bodies run to 12KB+ (release notes), and
+    # the only consumer renders a two-line preview — shipping the full text
+    # made a 25-row page several megabytes.
+    excerpt: str = ""
     language: str
     created_at: datetime | None = None
     updated_at: datetime | None = None
     ingested_at: datetime | None = None
+    # Topic context, so a row can name its thread and link back to Discourse.
+    topic_title: str = ""
+    topic_slug: str = ""
+    topic_discourse_id: int | None = None
     analysis: AnalysisBadge = Field(default_factory=AnalysisBadge)
 
 

@@ -33,6 +33,18 @@ const KIND_LABEL = {
   assistant: 'Insight generation',
 }
 
+// Lead with the product, not the engine block: these cards are fine-tuned Laya
+// checkpoints (ModernBERT-large is the base encoder, listed under Provenance).
+// Latency line is measured, not aspirational: 19-23 ms round-trip per post
+// through the live sidecar (curl /classify, 2026-09-28).
+const LAYA_TAGLINES = {
+  priority:
+    'Laya · System 1 decision engine. One forward pass — no generated text, no hallucinated confidence. Calibrated urgency in ~20 ms, measured live on this deployment.',
+  sentiment:
+    'Laya · System 1 decision engine. The same RL-trained reflexes, tuned for tone — one forward pass, honest probabilities, ~20 ms per decision, measured live.',
+}
+const isLaya = (m) => (m.displayName || '').toLowerCase().startsWith('laya')
+
 const TABS = [
   { key: 'quality', label: 'Quality' },
   { key: 'live', label: 'Live behaviour' },
@@ -372,6 +384,21 @@ function ProvenancePanel({ model, repoHead }) {
           { label: 'Deployed', value: model.deployedAt ? formatDate(model.deployedAt) : '' },
         ]}
       />
+      {isLaya(model) && (
+        <p className="text-caption font-light leading-relaxed text-muted">
+          Trained with the Laya framework (RLCD / GRPO over a bidirectional encoder) on our own
+          community posts — the same decision-model family published at{' '}
+          <a
+            href="https://laya.convaiinnovations.com"
+            target="_blank"
+            rel="noreferrer noopener"
+            style={{ color: colors.blue }}
+          >
+            laya.convaiinnovations.com
+          </a>
+          . ModernBERT-large is the engine block; Laya is the car.
+        </p>
+      )}
 
       {model.labels.length > 0 && (
         <div>
@@ -423,7 +450,7 @@ function ProvenancePanel({ model, repoHead }) {
           className="inline-flex items-center gap-1.5 text-small font-medium"
           style={{ color: colors.blue }}
         >
-          Base model card ↗
+          {isLaya(model) ? 'Base encoder card ↗' : 'Base model card ↗'}
         </a>
       )}
     </div>
@@ -463,9 +490,43 @@ export default function ModelCard({ model, windowDays, repoHead }) {
             <h3 className="mt-2.5 text-h3 font-semibold leading-tight tracking-tight">
               {model.displayName}
             </h3>
-            <p className="mt-1 max-w-2xl text-small font-light leading-relaxed text-muted">
-              {model.task}
-            </p>
+            {isLaya(model) ? (
+              <>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span
+                    className="rounded-pill px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{ backgroundColor: alpha(tone, 0.14), color: tone }}
+                  >
+                    Laya
+                  </span>
+                  <span
+                    className="rounded-pill px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{
+                      backgroundColor: alpha(colors.midnight, 0.07),
+                      color: alpha(colors.midnight, 0.6),
+                    }}
+                  >
+                    Fine-tuned in-house
+                  </span>
+                  <span
+                    className="rounded-pill px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider"
+                    style={{
+                      backgroundColor: alpha(colors.blue, 0.1),
+                      color: colors.blue,
+                    }}
+                  >
+                    ~20 ms / decision
+                  </span>
+                </div>
+                <p className="mt-2 max-w-2xl text-small font-light leading-relaxed text-muted">
+                  {LAYA_TAGLINES[model.kind] ?? model.task}
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 max-w-2xl text-small font-light leading-relaxed text-muted">
+                {model.task}
+              </p>
+            )}
           </div>
 
           <div className="text-right">

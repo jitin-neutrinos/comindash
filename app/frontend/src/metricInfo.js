@@ -54,10 +54,10 @@ export const METRIC_INFO = {
     fresh: 'Trends and runs are live; insights refresh overnight.',
     links: ['totalPosts', 'avgSentiment', 'highPriority', 'modelConfidence'],
   },
-  painPointsPage: {
-    title: 'Pain points',
-    what: 'The full list of problems the AI found, worst first, each one backed by real quotes from posts.',
-    how: 'Urgent and unhappy posts are grouped into themes, then each theme is rated high, medium or low severity.',
+  insightsPage: {
+    title: 'Insights',
+    what: 'Everything the AI analyst concluded from the community — pain points, trends, anomalies, relationships and recommendations — each backed by real quotes from posts.',
+    how: 'Posts are grouped by theme, then the assistant classifies each group by type and rates pain points high/medium/low severity.',
     fresh: 'Rebuilt overnight.',
     links: ['activePainPoints', 'highPriority', 'avgSentiment'],
   },
@@ -167,16 +167,16 @@ export const METRIC_INFO = {
   /* ---- Pain points ------------------------------------------------------ */
   severityMix: {
     title: 'Severity mix',
-    what: 'How the problems break down by how bad they are — the shape of the workload, not its size.',
-    how: 'Every pain point is rated high, medium or low, then counted into the ring.',
+    what: 'How the currently-shown insights break down by how urgent they are — the shape of the workload, not its size.',
+    how: 'Every insight is rated high, medium or low, then counted into the ring.',
     fresh: 'Rebuilt overnight.',
     links: ['activePainPoints', 'highPriority'],
   },
 
-  painPointItem: {
-    title: 'Pain point',
-    what: 'One problem the assistant found, written up in plain words, with a severity badge and a count of the posts that back it up.',
-    how: 'Posts complaining about the same thing are grouped together; the group is summarised and rated high, medium or low severity.',
+  insightItem: {
+    title: 'Insight',
+    what: 'One conclusion the assistant reached, written up in plain words, with a type badge, a severity rating and a count of the posts that back it up.',
+    how: 'Posts on the same theme are grouped together; the group is summarised, typed (pain point, trend, anomaly, relationship or recommendation) and rated.',
     fresh: 'Rebuilt overnight.',
     links: ['activePainPoints', 'highPriority', 'avgSentiment'],
   },
@@ -221,6 +221,13 @@ export const METRIC_INFO = {
     fresh: 'Rebuilt overnight.',
     links: ['totalPosts'],
   },
+  insightBrief: {
+    title: 'What this means today',
+    what: 'A fresh read on the insight, written against the posts in its scope right now — not the frozen write-up from the night it was raised.',
+    how: 'The numbers are measured first, then handed to the AI to interpret. If the model cannot be reached, you get the measurements labelled as such, never invented analysis.',
+    fresh: 'Generated on open, cached for a week. “Regenerate” forces a new one.',
+    links: ['activePainPoints', 'modelConfidence'],
+  },
   insightRelationships: {
     title: 'Relationships',
     what: 'Other things this problem is tied to, with a bar showing how strong each tie is.',
@@ -239,7 +246,7 @@ export const METRIC_INFO = {
   adminApiRate: {
     title: 'API request rate',
     what: 'How hard the system is being used, and how much of that is failing. Flat blue line, quiet day.',
-    how: 'Requests per second over the last 30 minutes; the salmon line counts server errors only.',
+    how: 'Requests per second over the last 30 minutes; the dark line counts server errors only.',
     fresh: 'Refreshes every 30 seconds.',
   },
   adminTraffic: {

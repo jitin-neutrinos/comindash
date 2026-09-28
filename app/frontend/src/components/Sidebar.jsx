@@ -29,7 +29,7 @@ const ICONS = {
       <path d="M9.7 4.5h3v3" {...stroke} />
     </svg>
   ),
-  '/pain-points': (
+  '/insights': (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true" className="shrink-0">
       <path d="M8 2.75 14.25 13.25H1.75Z" {...stroke} />
       <path d="M8 6.75v2.75" {...stroke} />
@@ -167,7 +167,7 @@ export default function Sidebar({ open, onClose }) {
 
   const link = ({ isActive }) =>
     `relative z-10 mx-1 flex w-16 flex-col items-center gap-1 rounded-[10px] px-1 py-2.5 text-center transition-colors ${
-      isActive ? 'text-celeste drop-shadow-[0_0_8px_rgba(90,236,219,0.5)]' : 'text-white/60 hover:bg-white/5 hover:text-white'
+      isActive ? 'text-white drop-shadow-[0_0_8px_rgba(0,102,255,0.55)]' : 'text-white/60 hover:bg-white/5 hover:text-white'
     }`
 
   // One hairline between tiles (not a border on each tile, which stacked two
@@ -221,7 +221,7 @@ export default function Sidebar({ open, onClose }) {
           <div
             ref={pill}
             aria-hidden="true"
-            className="absolute left-0 top-0 z-0 rounded-[10px] bg-celeste/10 border border-celeste/20 shadow-[0_0_15px_rgba(90,236,219,0.15)] backdrop-blur-sm"
+            className="absolute left-0 top-0 z-0 rounded-[10px] bg-blue/15 border border-blue/35 shadow-[0_0_15px_rgba(0,102,255,0.25)] backdrop-blur-sm"
             style={{ opacity: 0 }}
           />
           <Divider />
@@ -242,7 +242,7 @@ export default function Sidebar({ open, onClose }) {
             title="Settings"
             className={({ isActive }) =>
               `flex w-16 flex-col items-center gap-1 rounded-[10px] px-1 py-2.5 text-center transition-colors ${
-                isActive ? 'text-celeste drop-shadow-[0_0_8px_rgba(90,236,219,0.5)]' : 'text-white/60 hover:bg-white/5 hover:text-white'
+                isActive ? 'text-white drop-shadow-[0_0_8px_rgba(0,102,255,0.55)]' : 'text-white/60 hover:bg-white/5 hover:text-white'
               }`
             }
           >

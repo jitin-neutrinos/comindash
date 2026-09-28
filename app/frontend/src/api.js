@@ -1044,9 +1044,11 @@ export const getOpsOverview = () =>
       auditDays: num(d?.retention_policy?.audit_retention_days),
     },
     prom24h: {
-      jobsDone: d?.prometheus_24h?.jobs_done_24h ?? null,
-      jobsFailed: d?.prometheus_24h?.jobs_failed_24h ?? null,
-      jobRetries: d?.prometheus_24h?.job_retries_24h ?? null,
+      // Prometheus increase() over counters yields fractions (reset
+      // interpolation) — job counts display as whole numbers.
+      jobsDone: Number.isFinite(d?.prometheus_24h?.jobs_done_24h) ? Math.round(d.prometheus_24h.jobs_done_24h) : null,
+      jobsFailed: Number.isFinite(d?.prometheus_24h?.jobs_failed_24h) ? Math.round(d.prometheus_24h.jobs_failed_24h) : null,
+      jobRetries: Number.isFinite(d?.prometheus_24h?.job_retries_24h) ? Math.round(d.prometheus_24h.job_retries_24h) : null,
     },
   }))
 

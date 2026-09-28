@@ -8,13 +8,13 @@ import {
   YAxis,
 } from 'recharts'
 import { alpha, chart, colors } from '../../theme'
-import { ChartSkeleton } from '../Skeletons'
+import { HBarsSkeleton } from '../Skeletons'
 import { BrandTooltip, ChartEmpty, axisProps, useChartAnimation } from './chartKit'
 
 /** Top-entity frequency bars (horizontal). data: [{ label, count }] */
 export default function EntityBar({ data, loading, height }) {
   const animated = useChartAnimation()
-  if (loading) return <ChartSkeleton height={height ?? 280} />
+  if (loading) return <HBarsSkeleton height={height ?? 280} />
   const rows = data ?? []
   if (!rows.length) return <ChartEmpty height={height ?? 280} />
 

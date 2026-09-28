@@ -2,7 +2,7 @@
 export const NAV = [
   { to: '/', label: 'Overview', end: true },
   { to: '/metrics', label: 'Metrics' },
-  { to: '/pain-points', label: 'Pain points' },
+  { to: '/insights', label: 'Insights' },
   { to: '/relationships', label: 'Relationships' },
   { to: '/explorer', label: 'Explorer' },
   { to: '/admin', label: 'Admin' },
