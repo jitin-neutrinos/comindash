@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "cytoscape": "^3.34.3",
+    "cytoscape-fcose": "^2.2.0",
     "d3-force": "^3.0.0",
     "date-fns": "^4.4.0",
     "gsap": "3.12.5",

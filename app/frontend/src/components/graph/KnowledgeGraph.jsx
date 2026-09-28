@@ -1,17 +1,33 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import { alpha, colors, graph as graphTone } from '../../theme'
-import { canAnimateEntrance, gsap, prefersReducedMotion } from '../../motion'
-import { buildAdjacency, layout, truncate } from './forceGraph'
-
-const W = 1000
-const H = 660
+import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { colors, graph as graphTone, mode as currentMode } from '../../theme'
+import { canAnimateEntrance } from '../../motion'
+import { cytoscape, layoutOptions, relLabel, toElements } from './cytoGraph'
+import { truncate } from './forceGraph'
 
 /**
- * Node palette. Brand rule: White + Neutrinos Blue dominate, exactly ONE
- * accent. Products are Blue (the subject of the platform), people are
- * Midnight (core), and Celeste is the single accent reserved for the
- * analyst-asserted layer — concepts and their edges.
+ * Interactive knowledge-graph canvas — Cytoscape.js + fcose edition.
+ *
+ * Why Cytoscape over the hand-rolled SVG: native pointer handling across
+ * mouse / trackpad / touch (pinch-zoom, two-finger pan, tap, drag) with
+ * zero custom gesture code, a canvas renderer that stays smooth well past
+ * our node count, and built-in cursor states. ~120 lines of custom
+ * pan/zoom/drag state collapse into the renderer.
+ *
+ * Preserved contracts (InsightPanel + Relationships depend on them):
+ *   - kindStyle()      : live-palette getter ({fill,label} per kind)
+ *   - selection shape  : {type:'node', keys, labels, node}
+ *                        {type:'edge', edgeId, keys, labels, edge}
+ *   - AdjacencyTable   : accessible list twin, unchanged
+ *
+ * Determinism: elements are seeded with a golden-angle spiral and fcose
+ * runs with randomize:false — the same graph always settles to the same
+ * picture, so people build a mental map of where things live.
+ *
+ * Motion rules (project skill): animations never gate content. The fcose
+ * settle IS the entrance; with reduced motion or a hidden tab it runs
+ * instantly with animate:false and the graph is simply there.
  */
+
 /* Live palette getters (functions, not consts): colors/graph are live
  * bindings that change with the theme mode — a module-level const would
  * freeze light-mode fills into dark mode. */
@@ -21,22 +37,126 @@ export const kindStyle = () => ({
   concept: { fill: colors.celeste, label: 'Analyst concept' },
 })
 
-const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi)
+/** Edge opacity at rest — co-mention lines are quiet until focused. */
+const EDGE_REST = 0.34
+/** Edge opacity when asserted (analyst layer) or focused. */
+const EDGE_LIT = 0.75
+/** Distant elements during a focus — visible, but out of the story. */
+const DIM_NODE = 0.16
+const DIM_EDGE = 0.08
 
-/**
- * Interactive knowledge-graph canvas.
- *
- * Interaction model, chosen so the map stays legible as it grows:
- *   - hover        : neighbourhood highlight, everything else dims
- *   - click node   : select it (panel opens); its neighbourhood stays lit
- *   - click edge   : select the pair
- *   - drag / wheel : pan & zoom, clamped
- *   - keyboard     : Tab through nodes, Enter/Space selects, Escape clears
- *
- * Motion: the layout is computed settled (never animated tick-by-tick — a map
- * that moves while you read it is a worse map); only entrance and selection
- * transitions animate, all under 300ms, all reduced-motion guarded.
- */
+/** Live Cytoscape stylesheet, rebuilt whenever the theme mode changes. */
+function buildStyles(reduced) {
+  const t = reduced ? 0 : 180
+  return [
+    {
+      selector: 'core',
+      style: {
+        'active-bg-size': 0,
+        'selection-box-border-color': 'transparent',
+        'selection-box-background-color': 'transparent',
+      },
+    },
+    {
+      selector: 'node',
+      style: {
+        shape: 'ellipse',
+        width: 'data(size)',
+        height: 'data(size)',
+        'background-color': 'data(fill)',
+        'border-width': 2,
+        'border-color': graphTone.halo,
+        label: 'data(labelShort)',
+        color: graphTone.label,
+        'font-size': 'data(fsize)',
+        'font-family': "'Poppins', system-ui, sans-serif",
+        'font-weight': 400,
+        'text-valign': 'bottom',
+        'text-margin-y': 7,
+        'text-halign': 'center',
+        'text-wrap': 'ellipsis',
+        'text-max-width': 96,
+        'text-outline-color': graphTone.halo,
+        'text-outline-width': 3.5,
+        'text-outline-opacity': 1,
+        'min-zoomed-font-size': 9,
+        'z-index': 2,
+        'transition-property': 'opacity background-color border-color',
+        'transition-duration': t,
+      },
+    },
+    {
+      // Small nodes keep labels hidden until lit (old rule: on || r > 13).
+      selector: 'node.sm',
+      style: { 'text-opacity': 0 },
+    },
+    {
+      selector: 'node.lit',
+      style: { 'text-opacity': 1 },
+    },
+    {
+      selector: 'node.dim',
+      style: { opacity: DIM_NODE },
+    },
+    {
+      selector: 'edge',
+      style: {
+        width: 'data(width)',
+        'line-color': 'data(lineColor)',
+        'line-style': 'data(lineStyle)',
+        'curve-style': 'haystack',
+        'haystack-radius': 0.4,
+        opacity: EDGE_REST,
+        'transition-property': 'opacity line-color width',
+        'transition-duration': t,
+        'z-index': 1,
+      },
+    },
+    {
+      selector: 'edge.k-as',
+      style: {
+        'line-style': 'dash',
+        width: 1.6,
+        opacity: EDGE_LIT,
+        'z-index': 3,
+      },
+    },
+    {
+      selector: 'edge.dim',
+      style: { opacity: DIM_EDGE },
+    },
+    {
+      // Selection ring: a soft halo in the node's own colour (old SVG ring).
+      selector: 'node:selected',
+      style: {
+        'border-width': 7,
+        'border-color': 'data(fill)',
+        'border-opacity': 0.45,
+      },
+    },
+    {
+      selector: 'node.hov',
+      style: { 'font-weight': 600 },
+    },
+  ]
+}
+
+/** Stamp live theme colours + truncated labels onto element definitions. */
+function decorate(els) {
+  const ks = kindStyle()
+  for (const n of els.nodes) {
+    const st = ks[n.data.kind] ?? ks.product
+    n.data.fill = st.fill
+    n.data.kindLabel = st.label
+    n.data.labelShort = truncate(n.data.label, n.data.size / 2 > 15 ? 20 : 14)
+  }
+  for (const e of els.edges) {
+    e.data.lineColor = e.data.kind === 'asserted' ? colors.celeste : colors.blue
+    e.data.lineStyle = e.data.kind === 'asserted' ? 'dash' : 'solid'
+  }
+  return els
+}
+
 export default function KnowledgeGraph({
   graph,
   selection,
@@ -45,134 +165,302 @@ export default function KnowledgeGraph({
   showLabels = true,
 }) {
   const root = useRef(null)
-  const svgRef = useRef(null)
-  const [hover, setHover] = useState(null)
-  const [view, setView] = useState({ k: 1, x: 0, y: 0 })
-  const drag = useRef(null)
+  const cyRef = useRef(null)
+  const layoutRef = useRef(null)
+  const applyFocusRef = useRef(null)
+  const onSelectRef = useRef(onSelect)
+  onSelectRef.current = onSelect
+  const selectionRef = useRef(selection)
+  selectionRef.current = selection
 
-  const placed = useMemo(
-    () => layout(graph?.nodes ?? [], graph?.edges ?? [], { width: W, height: H }),
-    [graph],
+  const elements = useMemo(() => toElements(graph), [graph])
+  const counts = useMemo(
+    () => ({ n: elements.nodes.length, e: elements.edges.length }),
+    [elements],
   )
-  const adjacency = useMemo(() => buildAdjacency(graph?.edges ?? []), [graph])
-  const byId = useMemo(() => new Map(placed.nodes.map((n) => [n.id, n])), [placed])
 
-  // The active focus: an explicit selection wins over a transient hover.
-  const focusNode =
-    selection?.type === 'node' ? selection.keys[0] : hover?.type === 'node' ? hover.id : null
-  const focusEdge =
-    selection?.type === 'edge' ? selection.edgeId : hover?.type === 'edge' ? hover.id : null
+  /* ---- mount / data lifecycle -------------------------------------------- */
+  useEffect(() => {
+    const host = root.current
+    if (!host || !counts.n) return undefined
 
-  const lit = useMemo(() => {
-    if (focusNode) {
-      const set = new Set([focusNode])
-      for (const n of adjacency.get(focusNode) ?? []) set.add(n)
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const cy = cytoscape({
+      container: host,
+      elements: decorate(structuredClone(elements)),
+      style: buildStyles(reduced),
+      layout: { name: 'null' },
+      wheelSensitivity: 0.25,
+      minZoom: 0.25,
+      maxZoom: 3.5,
+      pixelRatio: true,
+      renderer: { name: 'canvas' },
+    })
+    cyRef.current = cy
+    // Dev handle for e2e verification (prod builds tree-shake this away).
+    if (import.meta.env?.DEV) window.__kg = cy
+
+    /* Focus model (same semantics as the SVG version): hover lights a
+     * neighbourhood transiently; an explicit selection wins; everything
+     * else dims but never disappears. */
+    const neighbourLit = (id) => {
+      const set = new Set([id])
+      cy
+        .getElementById(id)
+        .connectedEdges()
+        .connectedNodes()
+        .forEach((nb) => set.add(nb.id()))
       return set
     }
-    if (focusEdge) {
-      const e = placed.edges.find((x) => x.id === focusEdge)
-      return e ? new Set([e.source, e.target]) : null
+    const applyFocus = (nodeId, edgeId) => {
+      cy.batch(() => {
+        cy.elements().removeClass('dim lit')
+        if (nodeId) {
+          const lit = neighbourLit(nodeId)
+          cy.nodes().forEach((n) => (lit.has(n.id()) ? n.addClass('lit') : n.addClass('dim')))
+          cy.edges().forEach((e) => {
+            const on = lit.has(e.source().id()) && lit.has(e.target().id())
+            if (!on) e.addClass('dim')
+          })
+        } else if (edgeId) {
+          const edge = cy.getElementById(edgeId)
+          if (edge.nonempty()) {
+            const s = edge.source().id()
+            const t = edge.target().id()
+            cy.nodes().forEach((n) =>
+              n.id() === s || n.id() === t ? n.addClass('lit') : n.addClass('dim'),
+            )
+            cy.edges().forEach((x) => {
+              if (x.id() !== edgeId) x.addClass('dim')
+            })
+          }
+        }
+      })
     }
-    return null
-  }, [focusNode, focusEdge, adjacency, placed])
+    applyFocusRef.current = applyFocus
 
-  const isLit = useCallback((id) => !lit || lit.has(id), [lit])
-  const edgeLit = useCallback(
-    (e) => {
-      if (focusEdge) return e.id === focusEdge
-      if (!lit) return true
-      return lit.has(e.source) && lit.has(e.target)
-    },
-    [lit, focusEdge],
-  )
-
-  /* ---- entrance choreography (once per dataset) --------------------------- */
-  useLayoutEffect(() => {
-    const el = root.current
-    if (!el || !placed.nodes.length) return undefined
-    // Skip the entrance in a hidden tab: rAF is frozen there, so tweens that
-    // start from autoAlpha 0 would leave the whole graph invisible.
-    if (!canAnimateEntrance()) return undefined
-    const mm = gsap.matchMedia()
-    mm.add('(prefers-reduced-motion: no-preference)', () => {
-      const tl = gsap.timeline()
-      tl.fromTo(
-        el.querySelectorAll('.kg-edge'),
-        { autoAlpha: 0 },
-        { autoAlpha: 1, duration: 0.45, stagger: 0.004, ease: 'power2.out' },
-        0,
-      ).fromTo(
-        el.querySelectorAll('.kg-node'),
-        { autoAlpha: 0, scale: 0.86, transformOrigin: '50% 50%' },
-        { autoAlpha: 1, scale: 1, duration: 0.42, stagger: 0.012, ease: 'back.out(1.5)' },
-        0.12,
-      )
-      return () => tl.progress(1).kill()
+    /* Selection payloads — the exact shapes the SVG version emitted. */
+    const payload = (nodeEle) => ({
+      type: 'node',
+      keys: [nodeEle.id()],
+      labels: { [nodeEle.id()]: nodeEle.data('label') },
+      node: {
+        id: nodeEle.id(),
+        label: nodeEle.data('label'),
+        kind: nodeEle.data('kind'),
+        weight: nodeEle.data('weight'),
+        degree: nodeEle.data('degree'),
+        description: nodeEle.data('description'),
+        meta: nodeEle.data('meta'),
+      },
     })
-    return () => mm.revert()
-  }, [placed])
-
-  /* ---- pan & zoom ---------------------------------------------------------- */
-  const onWheel = useCallback((e) => {
-    e.preventDefault()
-    setView((v) => {
-      const k = clamp(v.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12), 0.55, 3.2)
-      return { ...v, k }
-    })
-  }, [])
-
-  useEffect(() => {
-    // Non-passive listener: React's onWheel is passive, so preventDefault()
-    // there is ignored and the page scrolls behind the graph.
-    const el = svgRef.current
-    if (!el) return undefined
-    el.addEventListener('wheel', onWheel, { passive: false })
-    return () => el.removeEventListener('wheel', onWheel)
-  }, [onWheel])
-
-  const onPointerDown = (e) => {
-    if (e.target.closest('.kg-node, .kg-edge-hit')) return
-    drag.current = { x: e.clientX, y: e.clientY, ox: view.x, oy: view.y }
-    e.currentTarget.setPointerCapture?.(e.pointerId)
-  }
-  const onPointerMove = (e) => {
-    const d = drag.current
-    if (!d) return
-    const scale = W / (svgRef.current?.getBoundingClientRect().width || W)
-    setView((v) => ({
-      ...v,
-      x: d.ox + (e.clientX - d.x) * scale,
-      y: d.oy + (e.clientY - d.y) * scale,
-    }))
-  }
-  const endDrag = (e) => {
-    drag.current = null
-    e.currentTarget.releasePointerCapture?.(e.pointerId)
-  }
-  const resetView = () => setView({ k: 1, x: 0, y: 0 })
-
-  /* ---- selection ----------------------------------------------------------- */
-  const selectNode = (n) =>
-    onSelect?.({ type: 'node', keys: [n.id], labels: { [n.id]: n.label }, node: n })
-
-  const selectEdge = (e) =>
-    onSelect?.({
+    const edgePayload = (e) => ({
       type: 'edge',
-      edgeId: e.id,
-      keys: [e.source, e.target],
-      labels: { [e.source]: e.sourceLabel, [e.target]: e.targetLabel },
-      edge: e,
+      edgeId: e.id(),
+      keys: [e.source().id(), e.target().id()],
+      labels: {
+        [e.source().id()]: e.source().data('label'),
+        [e.target().id()]: e.target().data('label'),
+      },
+      edge: {
+        id: e.id(),
+        kind: e.data('kind'),
+        relation: e.data('relation'),
+        weight: e.data('weight'),
+        posts: e.data('posts'),
+        insightId: e.data('insightId'),
+        source: e.source().id(),
+        target: e.target().id(),
+        sourceLabel: e.source().data('label'),
+        targetLabel: e.target().data('label'),
+        width: e.data('width'),
+      },
     })
 
-  useEffect(() => {
+    cy.on('tap', 'node', (evt) => {
+      const p = payload(evt.target)
+      applyFocus(p.keys[0], null)
+      onSelectRef.current?.(p)
+    })
+    cy.on('tap', 'edge', (evt) => {
+      const p = edgePayload(evt.target)
+      applyFocus(null, p.edgeId)
+      onSelectRef.current?.(p)
+    })
+    cy.on('tap', (evt) => {
+      if (evt.target === cy) {
+        applyFocus(null, null)
+        onSelectRef.current?.(null)
+      }
+    })
+
+    /* Hover focus — pointer devices only. On tap-triggered mouseover
+     * emulation (some mobile browsers), selection already applied it. */
+    const restoreToSelection = () => {
+      const sel = selectionRef.current
+      if (sel?.type === 'node' && cy.getElementById(sel.keys[0]).nonempty()) {
+        applyFocus(sel.keys[0], null)
+      } else if (sel?.type === 'edge' && cy.getElementById(sel.edgeId).nonempty()) {
+        applyFocus(null, sel.edgeId)
+      } else {
+        applyFocus(null, null)
+      }
+    }
+    cy.on('mouseover', 'node', (evt) => {
+      evt.target.addClass('hov')
+      applyFocus(evt.target.id(), null)
+    })
+    cy.on('mouseover', 'edge', (evt) => applyFocus(null, evt.target.id()))
+    cy.on('mouseout', 'node', (evt) => {
+      evt.target.removeClass('hov')
+      restoreToSelection()
+    })
+    cy.on('mouseout', 'edge', () => restoreToSelection())
+
+    /* Escape clears selection (keyboard parity with the SVG version). The
+     * canvas itself is not tabbable — the AdjacencyTable list twin carries
+     * keyboard/AT access, as before. */
     const onKey = (ev) => {
-      if (ev.key === 'Escape') onSelect?.(null)
+      if (ev.key === 'Escape') onSelectRef.current?.(null)
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [onSelect])
 
-  if (!placed.nodes.length) {
+    /* Tooltip (canvas has no <title>): follows the pointer, mirrors the
+     * old SVG title text — kind, mentions, connections / pair + posts. */
+    const tip = document.createElement('div')
+    tip.setAttribute('role', 'tooltip')
+    tip.style.cssText =
+      'position:fixed;z-index:50;pointer-events:none;opacity:0;transition:opacity 120ms ease-out;' +
+      'border-radius:8px;padding:6px 10px;font:400 12px/1.45 Poppins,system-ui,sans-serif;' +
+      'max-width:260px;box-shadow:0 8px 24px rgba(0,0,0,.18);white-space:nowrap;'
+    const tipFor = (ele) => {
+      if (ele.isNode()) {
+        return `${ele.data('kindLabel')}: ${ele.data('label')} — ${ele.data('weight')} mentions, ${ele.data('degree')} connections`
+      }
+      const e = ele
+      return e.data('kind') === 'asserted'
+        ? `${e.source().data('label')} — ${relLabel(e.data('relation'))} → ${e.target().data('label')} (analyst, strength ${Number(e.data('weight')).toFixed(2)})`
+        : `${e.source().data('label')} + ${e.target().data('label')}: mentioned together in ${e.data('posts')} posts`
+    }
+    const moveTip = (evt) => {
+      const { clientX: x, clientY: y } = evt.originalEvent ?? evt
+      tip.style.left = `${Math.min(x + 14, window.innerWidth - 270)}px`
+      tip.style.top = `${y + 16}px`
+    }
+    const showTip = (evt) => {
+      tip.textContent = tipFor(evt.target)
+      tip.style.background = getComputedStyle(host).backgroundColor
+      tip.style.color = graphTone.label
+      tip.style.border = `1px solid ${colors.blue}33`
+      tip.style.opacity = '1'
+      moveTip(evt)
+    }
+    cy.on('mouseover', 'node', (evt) => showTip(evt))
+    cy.on('mouseover', 'edge', (evt) => showTip(evt))
+    cy.on('mousemove', 'node', (evt) => moveTip(evt))
+    cy.on('mousemove', 'edge', (evt) => moveTip(evt))
+    cy.on('mouseout', 'node', () => {
+      tip.style.opacity = '0'
+    })
+    cy.on('mouseout', 'edge', () => {
+      tip.style.opacity = '0'
+    })
+    document.body.appendChild(tip)
+    // On touch there is no hover: show the tip briefly at the tap point.
+    cy.on('tap', 'node', (evt) => {
+      showTip(evt)
+      window.setTimeout(() => {
+        tip.style.opacity = '0'
+      }, 1600)
+    })
+    cy.on('tap', 'edge', (evt) => {
+      showTip(evt)
+      window.setTimeout(() => {
+        tip.style.opacity = '0'
+      }, 1600)
+    })
+
+    /* Entrance = the fcose settle itself (once per dataset). Reduced motion
+     * or a hidden tab runs it instantly so content never waits on an
+     * animation (project hard rule). */
+    layoutRef.current?.stop()
+    const l = cy.layout(layoutOptions(true && canAnimateEntrance()))
+    layoutRef.current = l
+    l.run()
+
+    const ro = new ResizeObserver(() => cy.resize())
+    ro.observe(host)
+
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      tip.remove()
+      ro.disconnect()
+      layoutRef.current?.stop()
+      cy.destroy()
+      cyRef.current = null
+      applyFocusRef.current = null
+    }
+  }, [elements, counts.n])
+
+  /* ---- theme switch: repaint palette in place ---------------------------- */
+  const prevMode = useRef(currentMode)
+  useEffect(() => {
+    if (prevMode.current === currentMode) return
+    prevMode.current = currentMode
+    const cy = cyRef.current
+    if (!cy) return
+    const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches
+    cy.style().fromJson(buildStyles(reduced)).update()
+    cy.batch(() => {
+      const ks = kindStyle()
+      cy.nodes().forEach((n) => {
+        const st = ks[n.data('kind')] ?? ks.product
+        n.data({
+          fill: st.fill,
+          labelShort: showLabels
+            ? truncate(n.data('label'), n.data('size') / 2 > 15 ? 20 : 14)
+            : '',
+        })
+      })
+      cy.edges().forEach((e) => {
+        e.data({
+          lineColor: e.data('kind') === 'asserted' ? colors.celeste : colors.blue,
+          lineStyle: e.data('kind') === 'asserted' ? 'dash' : 'solid',
+        })
+      })
+    })
+  })
+
+  /* ---- external selection (list rows, panel chips) ------------------------ */
+  useEffect(() => {
+    const cy = cyRef.current
+    if (!cy || !cy.nodes().nonempty()) return
+    cy.elements().unselect()
+    const id = selection?.keys?.[0]
+    if (id && cy.getElementById(id).nonempty()) {
+      cy.getElementById(id).select()
+      if (selection.type === 'node') applyFocusRef.current?.(id, null)
+      else if (selection.type === 'edge' && selection.edgeId)
+        applyFocusRef.current?.(null, selection.edgeId)
+    } else {
+      applyFocusRef.current?.(null, null)
+    }
+  }, [selection])
+
+  /* ---- viewport controls --------------------------------------------------- */
+  const zoomBy = useCallback((factor) => {
+    const cy = cyRef.current
+    if (!cy) return
+    cy.zoom({
+      level: Math.max(0.25, Math.min(3.5, cy.zoom() * factor)),
+      renderedPosition: { x: cy.width() / 2, y: cy.height() / 2 },
+    })
+  }, [])
+  const resetView = useCallback(() => {
+    cyRef.current?.fit(undefined, 46)
+  }, [])
+
+  if (!counts.n) {
     return (
       <div
         className="flex items-center justify-center rounded-xl border border-dashed border-line"
@@ -186,182 +474,21 @@ export default function KnowledgeGraph({
     )
   }
 
-  const reduced = prefersReducedMotion()
-  const labelFor = (n) => truncate(n.label, n.r > 15 ? 20 : 14)
-
   return (
-    <div ref={root} className="relative">
-      <svg
-        ref={svgRef}
-        viewBox={`0 0 ${W} ${H}`}
+    <div className="relative">
+      <div
+        ref={root}
         className="w-full touch-none select-none rounded-xl"
-        style={{ height, cursor: drag.current ? 'grabbing' : 'grab', background: graphTone.canvas }}
+        style={{ height, background: graphTone.canvas }}
         role="application"
-        aria-label={`Community knowledge graph: ${placed.nodes.length} entities, ${placed.edges.length} connections. Tab to an entity and press Enter for its briefing.`}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        onClick={(e) => {
-          if (e.target === svgRef.current) onSelect?.(null)
-        }}
-      >
-        <defs>
-          <radialGradient id="kg-vignette" cx="50%" cy="45%" r="72%">
-            <stop offset="55%" stopColor={graphTone.canvas} stopOpacity="0" />
-            <stop offset="100%" stopColor={graphTone.vignette} stopOpacity="0.045" />
-          </radialGradient>
-        </defs>
-        <rect width={W} height={H} fill="url(#kg-vignette)" pointerEvents="none" />
+        aria-label={`Community knowledge graph: ${counts.n} entities, ${counts.e} connections. Use the connections list below for keyboard access.`}
+      />
 
-        <g
-          transform={`translate(${W / 2} ${H / 2}) scale(${view.k}) translate(${-W / 2 + view.x} ${-H / 2 + view.y})`}
-          style={{ transition: reduced ? 'none' : 'transform 220ms cubic-bezier(0.23,1,0.32,1)' }}
-        >
-          {/* --- edges --------------------------------------------------- */}
-          {placed.edges.map((e) => {
-            const on = edgeLit(e)
-            const asserted = e.kind === 'asserted'
-            const stroke = asserted ? colors.celeste : colors.blue
-            const mx = (e.x1 + e.x2) / 2
-            const my = (e.y1 + e.y2) / 2
-            return (
-              <g key={e.id} className="kg-edge">
-                <line
-                  x1={e.x1}
-                  y1={e.y1}
-                  x2={e.x2}
-                  y2={e.y2}
-                  stroke={stroke}
-                  strokeWidth={asserted ? 1.6 : e.width}
-                  strokeLinecap="round"
-                  strokeDasharray={asserted ? '5 5' : undefined}
-                  opacity={on ? (asserted ? 0.75 : 0.34) : 0.06}
-                  style={{ transition: reduced ? 'none' : 'opacity 180ms ease-out' }}
-                  pointerEvents="none"
-                />
-                {/* Fat invisible hit area — a 1px line is not a click target. */}
-                <line
-                  className="kg-edge-hit"
-                  x1={e.x1}
-                  y1={e.y1}
-                  x2={e.x2}
-                  y2={e.y2}
-                  stroke="transparent"
-                  strokeWidth={14}
-                  style={{ cursor: 'pointer' }}
-                  onPointerEnter={() => setHover({ type: 'edge', id: e.id })}
-                  onPointerLeave={() => setHover(null)}
-                  onClick={(ev) => {
-                    ev.stopPropagation()
-                    selectEdge(e)
-                  }}
-                >
-                  <title>
-                    {asserted
-                      ? `${e.sourceLabel} — ${String(e.relation).replace(/_/g, ' ')} → ${e.targetLabel} (analyst, strength ${Number(e.weight).toFixed(2)})`
-                      : `${e.sourceLabel} + ${e.targetLabel}: mentioned together in ${e.posts} posts`}
-                  </title>
-                </line>
-                {asserted && (focusEdge === e.id || focusNode === e.source || focusNode === e.target) && (
-                  <text
-                    x={mx}
-                    y={my - 6}
-                    textAnchor="middle"
-                    fontSize={10}
-                    fill={graphTone.label}
-                    stroke={graphTone.halo}
-                    strokeWidth={3.5}
-                    strokeLinejoin="round"
-                    style={{ paintOrder: 'stroke', pointerEvents: 'none' }}
-                  >
-                    {String(e.relation).replace(/_/g, ' ')}
-                  </text>
-                )}
-              </g>
-            )
-          })}
-
-          {/* --- nodes --------------------------------------------------- */}
-          {placed.nodes.map((n) => {
-            const on = isLit(n.id)
-            const selected = selection?.keys?.includes(n.id)
-            const style = kindStyle()[n.kind] ?? kindStyle().product
-            return (
-              <g
-                key={n.id}
-                className="kg-node"
-                tabIndex={0}
-                role="button"
-                aria-label={`${style.label}: ${n.label}, ${n.weight} mentions, ${n.degree} connections`}
-                style={{ cursor: 'pointer', outline: 'none' }}
-                opacity={on ? 1 : 0.16}
-                onPointerEnter={() => setHover({ type: 'node', id: n.id })}
-                onPointerLeave={() => setHover(null)}
-                onFocus={() => setHover({ type: 'node', id: n.id })}
-                onBlur={() => setHover(null)}
-                onClick={(ev) => {
-                  ev.stopPropagation()
-                  selectNode(n)
-                }}
-                onKeyDown={(ev) => {
-                  if (ev.key === 'Enter' || ev.key === ' ') {
-                    ev.preventDefault()
-                    selectNode(n)
-                  }
-                }}
-              >
-                {selected && (
-                  <circle
-                    cx={n.x}
-                    cy={n.y}
-                    r={n.r + 7}
-                    fill="none"
-                    stroke={style.fill}
-                    strokeWidth={2}
-                    opacity={0.45}
-                  />
-                )}
-                <circle
-                  cx={n.x}
-                  cy={n.y}
-                  r={n.r}
-                  fill={style.fill}
-                  stroke={graphTone.halo}
-                  strokeWidth={2}
-                  style={{ transition: reduced ? 'none' : 'r 160ms cubic-bezier(0.23,1,0.32,1)' }}
-                />
-                {n.kind === 'concept' && (
-                  <circle cx={n.x} cy={n.y} r={Math.max(n.r - 4, 2)} fill={graphTone.halo} opacity={0.55} />
-                )}
-                {showLabels && (on || n.r > 13) && (
-                  <text
-                    x={n.x}
-                    y={n.y + n.r + 13}
-                    textAnchor="middle"
-                    fontSize={n.r > 15 ? 12 : 11}
-                    fontWeight={selected || focusNode === n.id ? 600 : 400}
-                    fill={graphTone.label}
-                    stroke={graphTone.halo}
-                    strokeWidth={3.5}
-                    strokeLinejoin="round"
-                    style={{ paintOrder: 'stroke', pointerEvents: 'none' }}
-                  >
-                    {labelFor(n)}
-                  </text>
-                )}
-                <title>{`${style.label}: ${n.label} — ${n.weight} mentions, ${n.degree} connections`}</title>
-              </g>
-            )
-          })}
-        </g>
-      </svg>
-
-      {/* --- viewport controls ---------------------------------------------- */}
+      {/* --- viewport controls -------------------------------------------- */}
       <div className="pointer-events-none absolute right-3 top-3 flex flex-col gap-1.5">
         {[
-          ['Zoom in', '+', () => setView((v) => ({ ...v, k: clamp(v.k * 1.25, 0.55, 3.2) }))],
-          ['Zoom out', '−', () => setView((v) => ({ ...v, k: clamp(v.k / 1.25, 0.55, 3.2) }))],
+          ['Zoom in', '+', () => zoomBy(1.25)],
+          ['Zoom out', '−', () => zoomBy(1 / 1.25)],
           ['Reset view', '⤾', resetView],
         ].map(([label, glyph, fn]) => (
           <button
@@ -369,7 +496,7 @@ export default function KnowledgeGraph({
             type="button"
             aria-label={label}
             onClick={fn}
-            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-line bg-surface text-body text-ink hover:border-blue hover:text-blue transition-colors hover:border-blue hover:text-blue"
+            className="pointer-events-auto flex h-8 w-8 items-center justify-center rounded-md border border-line bg-surface text-body text-ink transition-colors hover:border-blue hover:text-blue"
           >
             {glyph}
           </button>
@@ -380,7 +507,7 @@ export default function KnowledgeGraph({
         className="pointer-events-none absolute bottom-3 left-3 rounded-pill bg-surface/85 px-3 py-1 text-caption font-light text-muted backdrop-blur"
         aria-hidden="true"
       >
-        Drag to pan · scroll to zoom · click an entity or a link
+        Drag to pan · scroll or pinch to zoom · tap an entity or a link
       </div>
 
       <p className="sr-only" aria-live="polite">
