@@ -325,8 +325,13 @@ class DiscourseClient:
 
     async def fetch_topic_posts(
         self, client: httpx.AsyncClient, topic_id: int
-    ) -> list[dict]:
-        """ALL posts of a topic (replies included) via the post stream."""
+    ) -> tuple[list[dict], str | None]:
+        """ALL posts of a topic (replies included) via the post stream.
+
+        Returns ``(posts, error)`` — ``error`` is a short reason string when
+        the topic could not be fetched, so the caller can count the failure on
+        the run stats instead of it vanishing into an empty list.
+        """
         async with self._semaphore:
             try:
                 data = await self._get(client, f"/t/{topic_id}.json")
@@ -370,19 +375,24 @@ class DiscourseClient:
                             }
                         )
                     await asyncio.sleep(self.request_delay)
-                return posts
+                return posts, None
             except Exception as e:  # noqa: BLE001 — one bad topic must not kill the run
                 logger.warning("Could not fetch posts for topic %s: %s", topic_id, e)
-                return []
+                return [], f"{type(e).__name__}: {e}"[:200]
             finally:
                 await asyncio.sleep(self.request_delay)
 
-    async def fetch_all_posts(self, topic_ids: list[int]) -> dict[int, list[dict]]:
+    async def fetch_all_posts(
+        self, topic_ids: list[int]
+    ) -> tuple[dict[int, list[dict]], dict[int, str]]:
         headers = self._headers()
         out: dict[int, list[dict]] = {}
+        failures: dict[int, str] = {}
         async with httpx.AsyncClient(headers=headers) as client:
             tasks = [self.fetch_topic_posts(client, tid) for tid in topic_ids]
             results = await asyncio.gather(*tasks)
-        for tid, posts in zip(topic_ids, results):
+        for tid, (posts, error) in zip(topic_ids, results):
             out[tid] = posts
-        return out
+            if error is not None:
+                failures[tid] = error
+        return out, failures

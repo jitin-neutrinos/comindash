@@ -199,8 +199,38 @@ export default function KnowledgeGraph({
     })
     cy.add(decorate(structuredClone(elements)))
     cyRef.current = cy
-    // Dev handle for e2e verification (prod builds tree-shake this away).
     if (import.meta.env?.DEV) window.__kg = cy
+
+    /* Zoom-responsive sizing: as zoom increases, nodes/edges shrink
+       proportionally so connections and data never disappear under
+       oversized circles / thick lines. Base pixel values stored at
+       mount time; scaled live on the `zoom` event (instant, batched). */
+    const baseSizes = new Map()
+    cy.nodes().forEach((n) => baseSizes.set(n.id(), n.data('size') ?? 24))
+    cy.edges().forEach((e) => baseSizes.set(e.id(), e.data('width') ?? 2))
+    cy.on('scrollzoom', () => applyScale())
+    cy.on('pinchzoom', () => applyScale())
+    // Continuous guard: apply scale every render frame so any programmatic
+    // zoom (fit, zoomBy buttons) also resizes instantly.
+    const resizeLoop = () => { applyScale(); requestAnimationFrame(resizeLoop) }
+    const rafId = requestAnimationFrame(resizeLoop)
+    const applyScale = () => {
+      const z = cy.zoom()
+      const baseZoom = 1 // design-time reference (fit at init ≈ 1×)
+      const scale = Math.max(0.2, Math.min(3, baseZoom / Math.max(z, 0.15)))
+      cy.batch(() => {
+        cy.nodes().forEach((n) => {
+          const base = baseSizes.get(n.id()) ?? n.data('size') ?? 24
+          n.style({ width: base * scale, height: base * scale })
+          const baseFs = n.data('fsize') ?? 11
+          n.style({ 'font-size': Math.max(7, baseFs * Math.sqrt(scale)) })
+        })
+        cy.edges().forEach((e) => {
+          const base = baseSizes.get(e.id()) ?? e.data('width') ?? 2
+          e.style({ width: base * scale })
+        })
+      })
+    }
 
     /* Focus model (same semantics as the SVG version): hover lights a
      * neighbourhood transiently; an explicit selection wins; everything
@@ -401,6 +431,7 @@ export default function KnowledgeGraph({
       window.removeEventListener('keydown', onKey)
       tip.remove()
       ro.disconnect()
+      cancelAnimationFrame(rafId)
       cy.destroy()
       cyRef.current = null
       applyFocusRef.current = null

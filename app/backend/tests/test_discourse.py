@@ -224,7 +224,7 @@ class TestFetchTopicPosts:
             }
         )
         async with httpx.AsyncClient() as http:
-            posts = await _client().fetch_topic_posts(http, 42)
+            posts, _error = await _client().fetch_topic_posts(http, 42)
         assert [p["discourse_post_id"] for p in posts] == [501, 502]
         assert posts[1]["body_text"] == "Reply"  # quote stripped
         assert posts[0]["author_hash"] == author_hash("alice")
@@ -242,8 +242,9 @@ class TestFetchTopicPosts:
 
         respx.get(f"{BASE}/t/43.json").respond(status_code=404)
         async with httpx.AsyncClient() as http:
-            posts = await _client().fetch_topic_posts(http, 43)
+            posts, error = await _client().fetch_topic_posts(http, 43)
         assert posts == []
+        assert error is not None  # the failure is counted, not swallowed silently
 
 
 class TestBackfillCap:

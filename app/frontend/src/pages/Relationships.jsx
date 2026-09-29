@@ -8,6 +8,9 @@ import PillTag from '../components/PillTag'
 import { GraphSkeleton } from '../components/Skeletons'
 import KnowledgeGraph, { AdjacencyTable, kindStyle } from '../components/graph/KnowledgeGraph'
 import InsightPanel from '../components/graph/InsightPanel'
+import MultiSelect from '../components/graph/MultiSelect'
+import InfographicCards from '../components/graph/InfographicCards'
+import { applyFilters, facetOptions, facetAvailability } from '../components/graph/graphFilter'
 
 const DENSITY = [
   { id: 'focused', label: 'Focused', minEdge: 6, maxPeople: 14, hint: 'Only the strongest links' },
@@ -34,6 +37,7 @@ export default function Relationships() {
   const [densityId, setDensityId] = useState('balanced')
   const [selection, setSelection] = useState(null)
   const [showTable, setShowTable] = useState(false)
+  const [filters, setFilters] = useState({ people: [], products: [], measured: true, asserted: true })
 
   const density = DENSITY.find((d) => d.id === densityId) ?? DENSITY[1]
   const fetcher = useMemo(
@@ -51,6 +55,13 @@ export default function Relationships() {
   }, [graph]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const stats = graph?.stats ?? {}
+  const filteredGraph = useMemo(() => (graph ? applyFilters(graph, filters) : null), [graph, filters])
+  const options = useMemo(() => (graph ? facetOptions(graph) : { people: [], products: [] }), [graph])
+  const avail = useMemo(() => (graph ? facetAvailability(graph, filters) : { people: new Set(), products: new Set(), measured: false, asserted: false }), [graph, filters])
+  const peopleOptions = options.people
+  const productOptions = options.products
+  const peopleAvailable = useMemo(() => new Set(Array.from(avail.people)), [avail])
+  const productAvailable = useMemo(() => new Set(Array.from(avail.products)), [avail])
 
   return (
     <div ref={page} className="space-y-6">
@@ -101,10 +112,10 @@ export default function Relationships() {
         data-anim="row"
         className="flex flex-wrap items-center gap-x-8 gap-y-3 rounded-2xl border border-line bg-surface px-6 py-4"
       >
-        <StatBlock value={stats.people ?? 0} label="people" color={colors.midnight} />
-        <StatBlock value={stats.products ?? 0} label="products" color={colors.blue} />
-        <StatBlock value={stats.coMentionEdges ?? 0} label="measured links" color={alpha(colors.blue, 0.45)} />
-        <StatBlock value={stats.assertedEdges ?? 0} label="analyst links" color={colors.celeste} />
+        <StatBlock value={filteredGraph?.stats?.people ?? stats.people ?? 0} label="visible people" color={colors.midnight} />
+        <StatBlock value={filteredGraph?.stats?.products ?? stats.products ?? 0} label="visible products" color={colors.blue} />
+        <StatBlock value={filteredGraph?.stats?.coMentionEdges ?? stats.coMentionEdges ?? 0} label="measured links" color={alpha(colors.blue, 0.45)} />
+        <StatBlock value={filteredGraph?.stats?.assertedEdges ?? stats.assertedEdges ?? 0} label="analyst links" color={colors.celeste} />
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {Object.entries(kindStyle()).map(([kind, s]) => (
             <PillTag key={kind} color={s.fill} dot>
@@ -113,6 +124,29 @@ export default function Relationships() {
           ))}
         </div>
       </div>
+
+      {/* --- filter bar (faceted multi-select + link toggles) ------------ */}
+      <div data-anim="row" className="flex flex-wrap items-center gap-3 rounded-2xl border border-line bg-surface px-5 py-4">
+        <span className="text-caption font-medium text-muted">Filter:</span>
+        <MultiSelect label="Person" options={peopleOptions} selected={filters.people} onChange={(v) => setFilters({ ...filters, people: v })} available={peopleAvailable} />
+        <MultiSelect label="Product" options={productOptions} selected={filters.products} onChange={(v) => setFilters({ ...filters, products: v })} available={productAvailable} />
+        <button
+          type="button"
+          onClick={() => setFilters({ ...filters, measured: !filters.measured })}
+          className={`rounded-pill border px-3.5 py-2 text-small transition-colors ${filters.measured ? 'border-blue/50 bg-blue/[0.06] text-blue' : 'border-line bg-surface text-muted hover:text-ink'}`}
+          aria-pressed={filters.measured}
+        >Measured links</button>
+        <button
+          type="button"
+          onClick={() => setFilters({ ...filters, asserted: !filters.asserted })}
+          className={`rounded-pill border px-3.5 py-2 text-small transition-colors ${filters.asserted ? 'border-celeste/50 bg-celeste/[0.06] text-celeste' : 'border-line bg-surface text-muted hover:text-ink'}`}
+          aria-pressed={filters.asserted}
+        >Analyst links</button>
+        <span className="ml-auto text-caption text-muted">{filteredGraph ? `${filteredGraph.nodes.length} nodes · ${filteredGraph.edges.length} links` : ''}</span>
+      </div>
+
+      {/* --- infographic cards (filter-responsive) --------------------------- */}
+      <InfographicCards graph={filteredGraph ? { ...filteredGraph, stats: filteredGraph.stats ?? {} } : null} filters={{ selection, ...filters }} />
 
       {/* --- map + panel ---------------------------------------------------- */}
       <div data-anim="chart" className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
@@ -142,7 +176,7 @@ export default function Relationships() {
           )}
           {!loading && !error && (
             <KnowledgeGraph
-              graph={graph}
+              graph={filteredGraph ?? graph}
               selection={selection}
               onSelect={setSelection}
               height={620}
@@ -167,7 +201,7 @@ export default function Relationships() {
         <div className="min-h-[560px] lg:sticky lg:top-6 lg:h-[calc(100vh-6rem)]">
           <InsightPanel
             selection={selection}
-            graph={graph}
+            graph={filteredGraph ?? graph}
             onSelect={setSelection}
             onClose={() => setSelection(null)}
           />
@@ -178,7 +212,7 @@ export default function Relationships() {
       {showTable && (
         <div data-anim="row">
           <FrameCard title="All connections" accent={colors.blue} lift={false}>
-            <AdjacencyTable graph={graph} onSelect={setSelection} limit={60} />
+            <AdjacencyTable graph={filteredGraph ?? graph} onSelect={setSelection} limit={60} />
           </FrameCard>
         </div>
       )}

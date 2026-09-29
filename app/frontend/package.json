@@ -9,6 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@radix-ui/react-popover": "^1.1.6",
+    "cmdk": "^1.0.4",
     "cytoscape": "^3.34.3",
     "cytoscape-fcose": "^2.2.0",
     "d3-force": "^3.0.0",

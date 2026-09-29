@@ -145,7 +145,7 @@ async def run_ingest(
         topics, pages_done, truncated = await client.fetch_topics_since(since)
         state.pages_done = pages_done
 
-        posts_by_topic = await client.fetch_all_posts(
+        posts_by_topic, topic_failures = await client.fetch_all_posts(
             [t["discourse_topic_id"] for t in topics]
         )
 
@@ -196,9 +196,16 @@ async def run_ingest(
             "posts_new": new_posts,
             "posts_updated": updated_posts,
             "posts_reopened": len(edited_ids),
+            "topics_failed": len(topic_failures),
             "pages": pages_done,
             "truncated": truncated,
         }
+        if topic_failures:
+            # failure reasons stay bounded: first few, then a count
+            sample = list(topic_failures.items())[:3]
+            stats["topic_failures"] = {
+                str(tid): reason for tid, reason in sample
+            }
         run.status = RunStatus.done
         state.status = "done"
     except Exception as e:  # noqa: BLE001 — recorded on the run, then re-raised

@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from typing import Any, Callable, Sequence
 
 import httpx
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
@@ -59,10 +59,21 @@ MARKER_NAME = {
 async def pending_posts(
     session: AsyncSession, stage: str, limit: int | None = None
 ) -> list[tuple[int, str]]:
-    """(post_id, body_text) for posts this stage has not analysed yet."""
+    """(post_id, body_text) for posts this stage has not analysed yet.
+
+    Empty-body posts (Discourse small-action/system events — "pinned this",
+    "closed this") are excluded and never marked: scoring empty text is
+    noise, and excluding them at the source keeps every stage and the
+    anti-join in agreement. They simply do not participate in analysis.
+    """
     column = MARKER[stage]
     stmt = (
-        select(Post.id, Post.body_text).where(column.is_(None)).order_by(Post.id)
+        select(Post.id, Post.body_text)
+        .where(column.is_(None))
+        # btrim is Postgres-only; SQLite (tests) gets trim. Whitespace-only
+        # bodies count as empty on both.
+        .where(func.length(func.trim(Post.body_text)) > 0)
+        .order_by(Post.id)
     )
     limit = limit if limit is not None else get_settings().analysis_batch_size
     if limit:

@@ -13,6 +13,7 @@ Self-check: ``python -m app.services.system_status`` (run from app/backend).
 
 from __future__ import annotations
 
+import asyncio
 import os
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -62,14 +63,14 @@ def worker_state(
     """
     backlog = pending + running
     if age_s is not None and age_s <= stale_s:
-        return "ok", "Claimed a job recently."
+        return "ok", "Picked up a job recently."
     if backlog == 0:
-        return "idle", "Queue is empty — no claims expected."
+        return "idle", "The work queue is empty, so there is nothing to pick up."
     if age_s is None:
-        return "down", f"{backlog} job(s) queued and the worker has never claimed one."
+        return "down", f"{backlog} job(s) waiting, and the worker has never picked one up."
     if age_s <= stale_s * 4:
-        return "warn", f"{backlog} job(s) queued, last claim {int(age_s)}s ago."
-    return "down", f"{backlog} job(s) queued, last claim {int(age_s)}s ago."
+        return "warn", f"{backlog} job(s) waiting; the last pickup was {int(age_s)} seconds ago."
+    return "down", f"{backlog} job(s) waiting; the last pickup was {int(age_s)} seconds ago."
 
 
 def health_from_age(age_s: float | None, warn_s: float, fail_s: float) -> str:
@@ -164,9 +165,9 @@ async def build_status(session: AsyncSession) -> dict[str, Any]:
     # --- pipeline stages -------------------------------------------------
     stages = []
     stage_defs = [
-        ("ingest", "Ingestion", "Pulls new Discourse topics and posts", 6 * 3600, 26 * 3600),
-        ("analyze", "Analysis", "Scores posts through the model sidecar", 6 * 3600, 26 * 3600),
-        ("assistant", "Assistant", "Nightly GLM insight synthesis", 26 * 3600, 3 * 24 * 3600),
+        ("ingest", "Collecting", "Brings in new forum topics and posts", 6 * 3600, 26 * 3600),
+        ("analyze", "Understanding", "Judges each post's urgency and tone, and spots the names in it", 6 * 3600, 26 * 3600),
+        ("assistant", "Summarising", "Writes the daily insight summaries overnight", 26 * 3600, 3 * 24 * 3600),
     ]
     for key, label, desc, warn_s, fail_s in stage_defs:
         last = (
@@ -224,6 +225,13 @@ async def build_status(session: AsyncSession) -> dict[str, Any]:
 
     # --- services --------------------------------------------------------
     sidecar = await _probe(f"{SIDECAR_URL}/health")
+    if not sidecar["reachable"]:
+        # The sidecar is socket-activated with a 15-min idle timer: first
+        # contact after a sleep is refused while systemd spawns it. One retry
+        # (the probe itself wakes it) separates "asleep by design, waking" from
+        # "actually broken" — the same honesty rule as the worker's idle state.
+        await asyncio.sleep(4)
+        sidecar = await _probe(f"{SIDECAR_URL}/health", timeout=6.0)
     sidecar_body = sidecar.get("body") if isinstance(sidecar.get("body"), dict) else {}
     loki = await _probe(f"{LOKI_URL}/ready")
     prom = await _probe(f"{PROM_URL}/-/healthy")
@@ -236,36 +244,34 @@ async def build_status(session: AsyncSession) -> dict[str, Any]:
 
     services = [
         {
-            "key": "db", "label": "PostgreSQL (pgvector)",
-            "role": "Primary datastore — posts, results, registry",
+            "key": "db", "label": "The library",
+            "role": "Keeps every post, every score and every insight, ready when you ask",
             "state": "ok" if db_ok else "down",
             "detail": {"container": "app-db-1", "address": "172.22.0.5:5432"},
         },
         {
-            "key": "backend", "label": "FastAPI backend",
-            "role": "Serves this dashboard and the analysis API",
+            "key": "backend", "label": "The messenger",
+            "role": "Carries questions from your screen and answers back with live data",
             # This code is running inside it; it is up by construction.
             "state": "ok",
             "detail": {"container": "app-backend-1", "address": "172.22.0.3:8000"},
         },
         {
-            "key": "worker", "label": "Background worker",
-            "role": "Claims ingest / analyze / assistant jobs from the queue",
+            "key": "worker", "label": "The workhorse",
+            "role": "Collects new posts, scores them and builds the summaries, around the clock",
             "state": wstate,
             "detail": {
                 "container": "app-worker-1", "address": "172.22.0.4",
                 "last_activity": heartbeat,
                 "age_seconds": worker_age,
                 "reason": wreason,
-                "note": "Liveness is inferred from queue activity — the API "
-                        "container cannot see Docker. An empty queue reads as "
-                        "'idle', not 'down': the worker only stamps a timestamp "
-                        "when it claims a job.",
+                "note": "The workhorse only reports in when it picks up a job. "
+                        "With nothing to do, quiet is normal, not a fault.",
             },
         },
         {
-            "key": "sidecar", "label": "Model inference sidecar",
-            "role": "Serves Laya (priority/sentiment) and GLiNER (NER) on the GPU",
+            "key": "sidecar", "label": "The analyst",
+            "role": "The AI brain: reads each post and judges its urgency, tone and the names in it",
             "state": "ok" if (sidecar_body.get("laya") and sidecar_body.get("gliner"))
                      else ("warn" if sidecar["reachable"] else "down"),
             "detail": {
@@ -275,25 +281,26 @@ async def build_status(session: AsyncSession) -> dict[str, Any]:
                     "laya": sidecar_body.get("laya"),
                     "gliner": sidecar_body.get("gliner"),
                 },
-                "note": "Runs on the host so the GPU stays out of a container.",
+                "note": "Runs on the main machine so it can use the graphics card directly. "
+                        "It sleeps when idle and wakes on the next job.",
             },
         },
         {
-            "key": "loki", "label": "Loki", "role": "Log aggregation",
+            "key": "loki", "label": "The diary",
+            "role": "Keeps every log line, so anything that happened can be looked up later",
             "state": "ok" if loki["reachable"] else "warn",
             "detail": {
                 "container": "app-loki-1", "address": LOKI_URL,
                 "note": (
-                    "Known infrastructure split: Loki and promtail sit on the "
-                    "app_default network (172.23.x) while the app services run "
-                    "on app_app_default (172.22.x), so the backend cannot reach "
-                    "Loki by name. Log queries fall back to the rotated JSONL "
-                    "files — logs are NOT lost, but Loki is not serving them."
+                    "The diary is up but on the wrong internal network, so the "
+                    "backend cannot reach it. Nothing is lost: logs still land in "
+                    "local files and this page reads those instead."
                 ) if not loki["reachable"] else "",
             },
         },
         {
-            "key": "prometheus", "label": "Prometheus", "role": "Metrics scraping",
+            "key": "prometheus", "label": "The pulse",
+            "role": "Counts requests and errors over time, so trends are visible",
             "state": "ok" if prom["reachable"] else "down",
             "detail": {"container": "app-prometheus-1", "address": PROM_URL},
         },
