@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import logoSymbolWhite from '../brand/logo/neutrinos-symbol-white.png'
-import logoSymbolColor from '../brand/logo/neutrinos-symbol-color.png'
 import { NAV } from './Header'
 import { gsap, prefersReducedMotion } from '../motion'
 import { useMode } from '../theme'
@@ -110,15 +109,14 @@ const GEAR_ICON = (
  * narrow width), closed by the backdrop, Escape, or navigating — no in-panel
  * close button (removed 2026-09-28 by user request).
  *
- * Rail surface follows the mode (2026-09-28): Midnight Blue with white marks
- * in light mode; WHITE with Neutrinos-blue marks + colour logo in dark mode.
- * Colors are explicit literals (not theme tokens) because the rail is its
- * own surface — e.g. `text-blue` would get lifted to #4D94FF by the dark
- * `.text-blue` override, which fails contrast on a white rail.
+ * Rail surface: Midnight Blue with white marks in BOTH modes (2026-09-29:
+ * dark-mode rail recolored from white to midnight, matching the community
+ * admin bot rail). Colors are explicit literals (not theme tokens) because
+ * the rail is its own surface — e.g. `text-blue` would get lifted to #4D94FF
+ * by the dark `.text-blue` override, which is wrong for rail marks.
  */
 export default function Sidebar({ open, onClose }) {
   const m = useMode()
-  const dark = m === 'dark'
   const panel = useRef(null)
   const backdrop = useRef(null)
   const pill = useRef(null)
@@ -202,16 +200,12 @@ export default function Sidebar({ open, onClose }) {
   }, [open, onClose])
 
   /* Tile styling per mode. Active/ink pairs chosen for ≥4.5:1 on the rail:
-   * light rail — white on midnight; dark-mode rail — #0066FF / #0052CC on
-   * white (4.83:1 / 6.6:1). */
+   * midnight rail in BOTH modes since 2026-09-29 — white/60 idle, white
+   * active with the blue glow pill (blue-on-midnight text fails contrast,
+   * white passes). */
   const tile = (isActive) => {
     const base =
       'flex w-16 flex-col items-center gap-1 rounded-[10px] px-1 py-2.5 text-center transition-colors'
-    if (dark) {
-      return isActive
-        ? `${base} text-[#0066FF] drop-shadow-[0_0_8px_rgba(0,102,255,0.4)]`
-        : `${base} text-[#0052CC] hover:bg-[#0066FF]/[0.06] hover:text-[#0066FF]`
-    }
     return isActive
       ? `${base} text-white drop-shadow-[0_0_8px_rgba(0,102,255,0.55)]`
       : `${base} text-white/60 hover:bg-white/5 hover:text-white`
@@ -220,13 +214,9 @@ export default function Sidebar({ open, onClose }) {
 
   // One hairline between tiles (not a border on each tile, which stacked two
   // lines at every seam) — a plain sibling `div`, so it never sits inside the
-  // active-item pill's box and can't be clipped by it.
-  const Divider = () => (
-    <div
-      aria-hidden="true"
-      className={`h-px w-16 shrink-0 ${dark ? 'bg-[#0066FF]/20' : 'bg-celeste/35'}`}
-    />
-  )
+  // active-item pill's box and can't be clipped by it. Rail is midnight in
+  // both modes, so one divider style serves both.
+  const Divider = () => <div aria-hidden="true" className="h-px w-16 shrink-0 bg-celeste/35" />
 
   return (
     <>
@@ -240,23 +230,18 @@ export default function Sidebar({ open, onClose }) {
       <aside
         ref={panel}
         aria-label="Sections"
-        className={`fixed inset-y-0 left-0 z-50 flex w-20 shrink-0 flex-col px-2 pb-6 ${
-          dark ? 'border-r border-[#E6EAF0] bg-white' : 'bg-midnight'
-        }`}
+        className="fixed inset-y-0 left-0 z-50 flex w-20 shrink-0 flex-col bg-midnight px-2 pb-6"
       >
         {/* Brand mark — symbol only (the narrow rail is the only state).
-         * Colour symbol on the white dark-mode rail, white on midnight. */}
+         * White symbol on midnight in BOTH modes (2026-09-29: dark-mode rail
+         * recolored to midnight; colour symbol retired from the rail). */}
         <Link
           to="/"
           onClick={onClose}
           aria-label="Neutrinos — go to overview"
           className="flex items-center justify-center pb-4 pt-4"
         >
-          <img
-            src={dark ? logoSymbolColor : logoSymbolWhite}
-            alt="Neutrinos"
-            className="h-[50px] w-[50px]"
-          />
+          <img src={logoSymbolWhite} alt="Neutrinos" className="h-[50px] w-[50px]" />
         </Link>
         <div
           ref={nav}
@@ -281,11 +266,12 @@ export default function Sidebar({ open, onClose }) {
             </Fragment>
           ))}
         </div>
-        {/* Theme toggle — directly above Settings; per-mode rail styling. */}
-        <div className={`mt-2 flex justify-center border-t pt-2 ${dark ? 'border-[#0066FF]/15' : 'border-white/10'}`}>
-          <ThemeToggle dark={dark} />
+        {/* Theme toggle — directly above Settings; midnight-rail styling in
+         * both modes (rail no longer flips white in dark mode). */}
+        <div className="mt-2 flex justify-center border-t border-white/10 pt-2">
+          <ThemeToggle dark={false} />
         </div>
-        <div className={`mt-1 flex justify-center border-t pt-2 ${dark ? 'border-[#0066FF]/15' : 'border-white/10'}`}>
+        <div className="mt-1 flex justify-center border-t border-white/10 pt-2">
           <NavLink
             to="/settings"
             onClick={onClose}
