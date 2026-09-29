@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime, timezone
 from typing import Any
@@ -10,9 +11,59 @@ from app.database import get_session
 from app.models import PipelineRun, Job, AuditLog, ModelKind, ModelVersion
 from app.schemas import ModelVersionIn, ModelVersionOut
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 LOKI_URL = os.environ.get("LOKI_URL", "http://loki:3100")
+
+def _loki_query(service: str | None, level: str | None, run_id: str | None) -> str:
+    parts = ['container=~".+"']
+    if service:
+        parts.append(f'service="{service}"')
+    if level:
+        parts.append(f'level="{level.lower()}"')
+    if run_id:
+        parts.append(f'run_id="{run_id}"')
+    return "{" + ",".join(parts) + "}"
+
+
+def _parse_loki_response(data: dict) -> list[dict]:
+    """Loki query_range payload -> flat list of log objects (raw line kept on parse failure)."""
+    results = []
+    for result in data.get("data", {}).get("result", []):
+        for val in result.get("values", []):
+            try:
+                results.append(json.loads(val[1]))
+            except json.JSONDecodeError:
+                results.append({"_raw": val[1]})
+    return results
+
+
+def _fallback_file_logs(service: str | None, level: str | None, run_id: str | None) -> list[dict]:
+    """Rotated jsonl fallback when Loki is unreachable. Newest first, filters applied."""
+    if service:
+        files = [f"/app/logs/{service}.jsonl"]
+    else:
+        files = ["/app/logs/backend.jsonl", "/app/logs/worker.jsonl"]
+    results = []
+    for f in files:
+        if not os.path.exists(f):
+            continue
+        with open(f, "r") as file:
+            for line in file:
+                try:
+                    log_obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if level and log_obj.get("level", "").lower() != level.lower():
+                    continue
+                if run_id and str(log_obj.get("run_id")) != run_id:
+                    continue
+                results.append(log_obj)
+    results.sort(key=lambda x: x.get("timestamp", x.get("ts", "")), reverse=True)
+    return results
+
 
 @router.get("/logs")
 async def get_logs(
@@ -22,65 +73,27 @@ async def get_logs(
     limit: int = 100,
     session: AsyncSession = Depends(get_session),
 ):
-    query_parts = ['container=~".+"']
-    if service:
-        query_parts.append(f'service="{service}"')
-    if level:
-        query_parts.append(f'level="{level.lower()}"')
-    if run_id:
-        query_parts.append(f'run_id="{run_id}"')
-    
-    query = "{" + ",".join(query_parts) + "}"
+    query = _loki_query(service, level, run_id)
 
-    
     # Sampled audit log
     try:
         session.add(AuditLog(actor="local-admin", action="view_logs", detail={"query": query}))
         await session.commit()
     except Exception as e:
-        import sys; sys.stderr.write('AUDIT ERROR: ' + repr(e) + '\n'); sys.stderr.flush()
-    
+        logger.warning("audit-log write failed for view_logs: %r", e)
+
     try:
         async with httpx.AsyncClient(timeout=2.0) as client:
             resp = await client.get(f"{LOKI_URL}/loki/api/v1/query_range", params={"query": query, "limit": limit})
             if resp.status_code == 200:
-                data = resp.json()
-                results = []
-                for result in data.get("data", {}).get("result", []):
-                    for val in result.get("values", []):
-                        try:
-                            # val is [timestamp, log_line]
-                            log_obj = json.loads(val[1])
-                            results.append(log_obj)
-                        except json.JSONDecodeError:
-                            results.append({"_raw": val[1]})
-                return {"items": results}
+                return {"items": _parse_loki_response(resp.json())}
+        logger.warning("loki returned %s for query %s; falling back to files", resp.status_code, query)
     except Exception as e:
-        import sys; sys.stderr.write('AUDIT ERROR: ' + repr(e) + '\n'); sys.stderr.flush()
-        pass
-    
+        logger.warning("loki unreachable (%r); falling back to files", e)
+
     # Fallback to jsonl files if Loki is unreachable
-    results = []
     try:
-        if service:
-            files = [f"/app/logs/{service}.jsonl"]
-        else:
-            files = ["/app/logs/backend.jsonl", "/app/logs/worker.jsonl"]
-            
-        for f in files:
-            if os.path.exists(f):
-                with open(f, 'r') as file:
-                    for line in file:
-                        try:
-                            log_obj = json.loads(line)
-                            if level and log_obj.get("level", "").lower() != level.lower():
-                                continue
-                            if run_id and str(log_obj.get("run_id")) != run_id:
-                                continue
-                            results.append(log_obj)
-                        except json.JSONDecodeError:
-                            continue
-        results.sort(key=lambda x: x.get("timestamp", x.get("ts", "")), reverse=True)
+        results = _fallback_file_logs(service, level, run_id)
         return {"items": results[:limit], "source": "fallback_file"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

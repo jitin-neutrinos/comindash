@@ -105,6 +105,27 @@ async def get_or_create_forum(
     return forum
 
 
+async def _ingest_topic_posts(
+    session: AsyncSession, topic_id: int, posts: list[dict]
+) -> tuple[int, int, list[int]]:
+    """Upsert one topic's posts. Returns (new, updated, edited_ids)."""
+    new = updated = 0
+    edited_ids: list[int] = []
+    for p in posts:
+        outcome = await _upsert_post(session, topic_id, p)
+        if outcome == "new":
+            new += 1
+            continue
+        updated += 1
+        if outcome == "edited":
+            existing = await session.scalar(
+                select(Post.id).where(Post.discourse_post_id == p["discourse_post_id"])
+            )
+            if existing is not None:
+                edited_ids.append(existing)
+    return new, updated, edited_ids
+
+
 async def run_ingest(
     session: AsyncSession | None = None,
     forum_id: int | None = None,
@@ -154,20 +175,12 @@ async def run_ingest(
         edited_ids: list[int] = []
         for t in topics:
             topic = await _upsert_topic(session, forum.id, t)
-            for p in posts_by_topic.get(t["discourse_topic_id"], []):
-                outcome = await _upsert_post(session, topic.id, p)
-                if outcome == "new":
-                    new_posts += 1
-                    continue
-                updated_posts += 1
-                if outcome == "edited":
-                    existing = await session.scalar(
-                        select(Post.id).where(
-                            Post.discourse_post_id == p["discourse_post_id"]
-                        )
-                    )
-                    if existing is not None:
-                        edited_ids.append(existing)
+            n_new, n_upd, n_edited = await _ingest_topic_posts(
+                session, topic.id, posts_by_topic.get(t["discourse_topic_id"], [])
+            )
+            new_posts += n_new
+            updated_posts += n_upd
+            edited_ids.extend(n_edited)
 
         # an edited post's stored priority/sentiment/entities describe text that
         # no longer exists — re-open it for the analysis stages

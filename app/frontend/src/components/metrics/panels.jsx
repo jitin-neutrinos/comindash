@@ -358,7 +358,7 @@ export function MoversPanel({ intel }) {
               ))}
             </div>
           ) : (
-            <p className="text-caption text-muted">Nothing rose meaningfully.</p>
+            <p className="text-caption text-muted">Nothing rose enough to list.</p>
           )}
         </div>
         <div>
@@ -383,7 +383,7 @@ export function MoversPanel({ intel }) {
               ))}
             </div>
           ) : (
-            <p className="text-caption text-muted">Nothing fell meaningfully.</p>
+            <p className="text-caption text-muted">Nothing fell enough to list.</p>
           )}
         </div>
       </div>
