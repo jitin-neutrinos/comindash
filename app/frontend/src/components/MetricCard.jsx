@@ -51,15 +51,23 @@ export default function MetricCard({
           </p>
           {infoKey && <MetricInfo metricKey={infoKey} accent={accent} />}
         </div>
-        <div className="mt-2 flex items-end justify-between gap-2">
+        {/* Value row wraps when tight: the spark drops below the number and
+            right-aligns instead of pressing into the card edge. The delta
+            row's own mt-auto absorbs leftover tile height, so tall and short
+            tiles both read balanced. */}
+        <div className="mt-2 flex flex-wrap items-end justify-between gap-x-3 gap-y-2">
           <p
             ref={numRef}
-            className="text-h1 font-semibold leading-none tracking-tight tabular-nums"
+            className="min-w-0 text-h1 font-semibold leading-none tracking-tight tabular-nums"
             aria-label={`${label}: ${fmt(value)}`}
           >
             {fmt(value)}
           </p>
-          {spark}
+          {spark && (
+            <div className="ml-auto min-w-0 max-w-full [&_svg]:h-auto [&_svg]:max-w-full">
+              {spark}
+            </div>
+          )}
         </div>
         {(delta || hint) && (
           <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-2.5">
