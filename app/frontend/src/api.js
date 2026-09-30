@@ -1053,3 +1053,41 @@ export const getOpsOverview = () =>
   }))
 
 export const triggerMaintenance = () => req('/admin/ops/maintenance/run', { method: 'POST' })
+
+const normalizeInsightRun = (r) => ({
+  id: num(r.id),
+  status: str(r.status),
+  model: str(r.model),
+  postsCovered: num(r.posts_covered),
+  topicsCovered: num(r.topics_covered),
+  chunkCalls: num(r.chunk_calls),
+  tokens: num(r.total_tokens),
+  costUsd: maybe(r.cost_usd),
+  durationMs: num(r.duration_ms),
+  generated: num(r.insights_generated),
+  accepted: num(r.insights_accepted),
+  rejected: num(r.insights_rejected),
+  error: str(r.error),
+  createdAt: str(r.created_at),
+  triggeredBy: str(r.triggered_by),
+})
+
+export const getInsightRuns = (page = 1, per = 15) =>
+  req(`/admin/insight-runs?limit=${per}&offset=${(page - 1) * per}`).then((d) => ({
+    items: list(d.items).map(normalizeInsightRun),
+    total: num(d.total),
+    page,
+  }))
+
+export const getInsightRun = (id) =>
+  req(`/admin/insight-runs/${id}`).then((d) => ({
+    ...normalizeInsightRun(d.run),
+    insights: list(d.insights).map((ins) => ({
+      id: num(ins.id),
+      type: str(ins.insight_type),
+      severity: str(ins.severity),
+      title: str(ins.title),
+      status: str(ins.status),
+      createdAt: str(ins.created_at),
+    })),
+  }))

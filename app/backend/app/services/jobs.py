@@ -136,3 +136,29 @@ async def watchdog(
         for jid in ids:
             logger.info("job %s requeued: stale lock", jid)
     return len(ids)
+
+async def enqueue_assistant_on_freshness(stats: dict, triggered_by: str) -> Job | None:
+    from app.services.database_session import get_run_session
+    
+    posts_new = int(stats.get("posts_new") or 0)
+    if posts_new <= 0:
+        return None
+
+    async with get_run_session() as session:
+        existing = await session.execute(
+            select(Job)
+            .where(Job.kind == "assistant_cycle", Job.status.in_([JobStatus.pending, JobStatus.running]))
+            .limit(1)
+        )
+        if existing.scalar_one_or_none() is not None:
+            return None
+
+        job = Job(
+            kind="assistant_cycle",
+            payload={"triggered_by": triggered_by},
+            status=JobStatus.pending
+        )
+        session.add(job)
+        await session.commit()
+        await session.refresh(job)
+        return job

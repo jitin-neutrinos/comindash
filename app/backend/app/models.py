@@ -13,7 +13,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 
-from sqlalchemy import (func, 
+from sqlalchemy import (func, Numeric, BigInteger, 
     JSON,
     Boolean,
     DateTime,
@@ -456,3 +456,37 @@ class AuditLog(Base):
     action: Mapped[str] = mapped_column(String(64))
     target: Mapped[str | None] = mapped_column(String(256), nullable=True)
     detail: Mapped[dict | list | None] = mapped_column(JSONField, nullable=True)
+
+class InsightRunStatus(str, enum.Enum):
+    running = "running"
+    succeeded = "succeeded"
+    failed = "failed"
+    skipped = "skipped"
+
+class InsightRun(Base):
+    __tablename__ = "insight_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("pipeline_runs.id", ondelete="SET NULL")
+    )
+    triggered_by: Mapped[str] = mapped_column(String(128), default="")
+    model: Mapped[str] = mapped_column(String(64), default="")
+    status: Mapped[InsightRunStatus] = mapped_column(
+        _enum(InsightRunStatus), default=InsightRunStatus.running
+    )
+    posts_covered: Mapped[int] = mapped_column(Integer, default=0)
+    topics_covered: Mapped[int] = mapped_column(Integer, default=0)
+    chunk_calls: Mapped[int] = mapped_column(Integer, default=0)
+    prompt_tokens: Mapped[int] = mapped_column(BigInteger, default=0)
+    completion_tokens: Mapped[int] = mapped_column(BigInteger, default=0)
+    total_tokens: Mapped[int] = mapped_column(BigInteger, default=0)
+    cost_usd: Mapped[float] = mapped_column(Numeric(10, 4), default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    insights_generated: Mapped[int] = mapped_column(Integer, default=0)
+    insights_accepted: Mapped[int] = mapped_column(Integer, default=0)
+    insights_rejected: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=func.now(), index=True
+    )

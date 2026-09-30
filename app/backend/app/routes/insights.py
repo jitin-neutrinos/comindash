@@ -284,7 +284,7 @@ async def ingest_insights_route(
             detail={"message": "payload failed schema validation", "errors": detail},
         )
 
-    result = await insights_gate.ingest_insights(session, parsed)
+    result = await insights_gate.ingest_insights(session, parsed, supersede="all")
     if result.accepted == 0:
         raise HTTPException(
             status_code=422,

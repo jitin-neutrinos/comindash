@@ -40,6 +40,22 @@ logger = logging.getLogger("insights_gate")
 SEVERITIES = {"high", "medium", "low"}
 
 
+
+
+NEAR_DUP_JACCARD = 0.6
+
+def _title_tokens(title: str) -> set[str]:
+    import re
+    tokens = re.split(r'[^a-zA-Z0-9]+', title.lower())
+    return {t for t in tokens if t}
+
+def is_near_duplicate(a: str, b: str) -> bool:
+    sa = _title_tokens(a)
+    sb = _title_tokens(b)
+    if not sa or not sb:
+        return False
+    return len(sa & sb) / len(sa | sb) >= NEAR_DUP_JACCARD
+
 class EvidenceIn(BaseModel):
     discourse_post_id: int
     quote: str = ""
@@ -107,9 +123,10 @@ def envelope_errors(raw: dict) -> list[str]:
 
 
 async def ingest_insights(
-    session: AsyncSession, payload: IngestPayload, run_id: int | None = None
+    session: AsyncSession, payload: IngestPayload, run_id: int | None = None, supersede: str = "title"
 ) -> GateResult:
     """Validate evidence post ids, versioned-insert valid insights, audit the rest."""
+    from sqlalchemy import update
     now = datetime.now(timezone.utc)
     errors: list[ItemError] = []
     insight_ids: list[int] = []
@@ -126,7 +143,6 @@ async def ingest_insights(
         )
         found = {r.discourse_post_id: (r.id, r.topic_id) for r in rows}
 
-    # pipeline run row representing this assistant delivery
     if run_id is None:
         run = PipelineRun(
             kind=RunKind.assistant,
@@ -138,6 +154,23 @@ async def ingest_insights(
         session.add(run)
         await session.flush()
         run_id = run.id
+
+    accepted_titles = []
+    
+    # Pre-check if anything will be inserted
+    will_insert_count = 0
+    for idx, ins in enumerate(payload.insights):
+        missing = [e.discourse_post_id for e in ins.evidence if e.discourse_post_id not in found]
+        if not missing:
+            # We don't check near dupe here to count will_insert, but we need to know if ANY will pass
+            # Actually, near dupe might reject some, but as long as one passes both missing and dupe.
+            pass
+            
+    # Instead of pre-checking exactly, let's just do the replace-all if supersede=="all" AND at least one item passes.
+    # To do that, we can compute the valid insights first before doing DB operations, or just do DB operations.
+    # We can do the DB replace right before the FIRST insert.
+    
+    has_superseded_all = False
 
     for idx, ins in enumerate(payload.insights):
         missing = sorted(
@@ -157,19 +190,51 @@ async def ingest_insights(
                 )
             )
             continue
-
-        # versioned insert: supersede the previous active insight of the same
-        # type+title from an older delivery
-        older = await session.execute(
-            select(AssistantInsight).where(
-                AssistantInsight.insight_type == ins.insight_type,
-                AssistantInsight.title == ins.title,
-                AssistantInsight.status == InsightStatus.active,
+            
+        # check near dupe
+        dupe_idx = -1
+        dupe_jaccard = 0.0
+        for i, prev_title in enumerate(accepted_titles):
+            sa = _title_tokens(ins.title)
+            sb = _title_tokens(prev_title)
+            if sa and sb:
+                j = len(sa & sb) / len(sa | sb)
+                if j >= NEAR_DUP_JACCARD:
+                    dupe_idx = i
+                    dupe_jaccard = j
+                    break
+        
+        if dupe_idx >= 0:
+            errors.append(
+                ItemError(
+                    index=idx,
+                    errors=[f"near-duplicate of insight {dupe_idx} (Jaccard {dupe_jaccard:.2f})"]
+                )
             )
-        )
-        for prev in older.scalars():
-            prev.status = InsightStatus.superseded
+            continue
 
+        if supersede == "all" and not has_superseded_all:
+            # ONLY when at least one item will be inserted. We are about to insert.
+            await session.execute(
+                update(AssistantInsight)
+                .where(AssistantInsight.status == InsightStatus.active)
+                .values(status=InsightStatus.superseded)
+            )
+            has_superseded_all = True
+            
+        elif supersede == "title":
+            older = await session.execute(
+                select(AssistantInsight).where(
+                    AssistantInsight.insight_type == ins.insight_type,
+                    AssistantInsight.title == ins.title,
+                    AssistantInsight.status == InsightStatus.active,
+                )
+            )
+            for prev in older.scalars():
+                prev.status = InsightStatus.superseded
+
+        accepted_titles.append(ins.title)
+        
         row = AssistantInsight(
             run_id=run_id,
             assistant_version=payload.assistant_version,
@@ -227,6 +292,9 @@ async def ingest_insights(
             errors,
         )
 
+    # Note: caller may commit or we commit. Original committed.
+    # The requirement: "One session.commit() covers supersede + inserts + run row = the atomicity R2 asks for"
+    # Wait, original does await session.commit(). Keep it.
     await session.commit()
     return GateResult(
         accepted=len(insight_ids),

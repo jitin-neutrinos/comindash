@@ -85,7 +85,10 @@ def _mock_forum() -> None:
 
 
 @respx.mock
-async def test_full_stub_pipeline(client, session):
+async def test_full_stub_pipeline(client, session, monkeypatch):
+    # The host shell may carry a real GLM_API_KEY; the stub pipeline must
+    # exercise the no-key skip path, never a real API attempt.
+    monkeypatch.delenv("GLM_API_KEY", raising=False)
     _mock_forum()
     client_http = DiscourseClient(base_url=BASE, retry_wait_mult=0)
 

@@ -242,6 +242,17 @@ async def handle_ingest(job_id: int, payload: dict[str, Any]) -> dict[str, Any]:
         ],
         payload,
     )
+    
+    try:
+        import importlib
+        mod = importlib.import_module("app.services.jobs")
+        job = await mod.enqueue_assistant_on_freshness(
+            stats if isinstance(stats, dict) else {}, triggered_by=f"freshness:{job_id}")
+        if job: 
+            log("assistant_cycle_enqueued_on_freshness", job_id=job.id, posts_new=(stats if isinstance(stats, dict) else {}).get("posts_new"))
+    except Exception as exc:  # hook must never fail the ingest job
+        log("freshness_hook_failed", level="warning", error=str(exc)[:200])
+
     return {"stats": stats if isinstance(stats, dict) else {"result": str(stats)}}
 
 

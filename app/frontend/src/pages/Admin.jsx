@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Activity, AlertCircle, BarChart2, Brain, ChevronDown, ChevronRight, Database, Gauge, RefreshCw, Search, Server } from 'lucide-react'
+import { Activity, AlertCircle, Lightbulb, BarChart2, Brain, ChevronDown, ChevronRight, Database, Gauge, RefreshCw, Search, Server } from 'lucide-react'
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { format } from 'date-fns'
 
@@ -14,6 +14,7 @@ import { BrandTooltip, ChartEmpty, axisProps, useChartAnimation } from '../compo
 import { ListSkeleton, ChartSkeleton, TableSkeleton } from '../components/Skeletons'
 import CommandCentre from '../components/admin/CommandCentre'
 import Review from './Review'
+import InsightRuns from '../components/admin/InsightRuns'
 
 // Tab order is the order an operator actually asks questions in: "is it up?"
 // (command centre) → "is the AI any good?" (review) → the raw evidence
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'logs', label: 'System logs', icon: Server },
   { id: 'metrics', label: 'Metrics', icon: BarChart2 },
   { id: 'pipeline', label: 'Pipeline history', icon: Activity },
+  { id: 'insights', label: 'Insight runs', icon: Lightbulb },
   { id: 'audit', label: 'Audit log', icon: Database },
 ]
 
@@ -109,6 +111,7 @@ export default function Admin() {
         {activeTab === 'logs' && <SystemLogs />}
         {activeTab === 'metrics' && <MetricsDashboard />}
         {activeTab === 'pipeline' && <PipelineHistory />}
+        {activeTab === 'insights' && <InsightRuns />}
         {activeTab === 'audit' && <AuditLogs />}
       </div>
     </div>

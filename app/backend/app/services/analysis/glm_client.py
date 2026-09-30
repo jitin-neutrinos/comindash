@@ -1,17 +1,19 @@
-"""GLM assistant client (pipeline-v3): z.ai glm-4.5-flash, free tier.
+"""GLM assistant client (pipeline-v3): chunk + synthesis calls over z.ai.
 
-Replaces the AI Hub assistant. The nightly cycle builds the analysis extract,
-asks GLM for the JSON insights payload, and pushes it through the SAME
-insights_gate as the external ingest path — identical validation, identical
-audit trail. Failures degrade to skip mode (never crash the worker).
+The cycle sends one extractor call per corpus chunk and one synthesis call
+merging candidates; every response's ``usage`` block is returned on
+GLMResult and summed into the ``insight_runs`` ledger. Failures raise
+GLMError so the cycle degrades to skip mode (never crash the worker).
 
 Config via env:
   GLM_API_KEY   — z.ai API key (required; missing → skip mode)
-  GLM_MODEL     — default glm-4.5-flash (free; glm-5.3-flash has no balance)
+  GLM_MODEL     — default glm-4.5-flash; prod .env pins glm-5.3
 """
 
 from __future__ import annotations
 
+import asyncio
+from dataclasses import dataclass
 import json
 import logging
 import os
@@ -22,7 +24,7 @@ import httpx
 logger = logging.getLogger("analysis.glm")
 
 GLM_BASE_URL = os.environ.get("GLM_BASE_URL", "https://api.z.ai/api/coding/paas/v4/chat/completions")
-ASSISTANT_VERSION = "glm-5.3-v2-product-context"
+ASSISTANT_VERSION = "glm-5.3-v3-full-corpus"
 
 # Grounded in documentation.neutrinos.com (mcp__neutrinos_docs__search_docs,
 # verified 2026-09-28) — real product descriptions, not GLM-hallucinated
@@ -119,48 +121,90 @@ def _extract_json(content: str) -> dict:
     return json.loads(text[start : end + 1])
 
 
-async def request_insights(extract_json: str) -> dict:
-    """One GLM call over the extract. Returns the parsed payload dict.
 
-    Raises GLMError on any failure — caller degrades to skip mode.
-    """
+GLM_COST_USD_PER_MTOK = 1.0
+
+def estimate_cost_usd(total_tokens: int) -> float:
+    return (total_tokens / 1_000_000.0) * GLM_COST_USD_PER_MTOK
+
+@dataclass
+class GLMResult:
+    payload: dict
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+
+async def chat(messages: list[dict], max_tokens: int) -> GLMResult:
     api_key = os.environ.get("GLM_API_KEY", "")
     if not api_key:
         raise GLMError("GLM_API_KEY not set")
     model = os.environ.get("GLM_MODEL", "glm-4.5-flash")
 
-    async with httpx.AsyncClient(timeout=240.0) as client:
-        resp = await client.post(
-            GLM_BASE_URL,
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={
-                "model": model,
-                # glm-4.5-flash thinks by default; thinking burns the whole
-                # token budget on reasoning_content and returns empty content.
-                "thinking": {"type": "disabled"},
-                "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {
-                        "role": "user",
-                        "content": "=== ANALYSIS EXTRACT ===\n" + extract_json,
-                    },
-                ],
-                "max_tokens": 4096,
-                "temperature": 0.3,
-            },
-        )
-    if resp.status_code == 429:
+    attempts = 0
+    while attempts < 3:
         try:
-            detail = resp.json().get("error", {}).get("message", "")
-        except Exception:  # noqa: BLE001
-            detail = ""
-        raise GLMError(f"GLM 429 rate limited/blocked: {detail[:200]}")
-    resp.raise_for_status()
-    data = resp.json()
-    content = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
-    if not content:
-        raise GLMError("empty GLM reply")
-    payload = _extract_json(content)
-    if not isinstance(payload.get("insights"), list) or not payload["insights"]:
-        raise GLMError("reply JSON has no insights array")
-    return payload
+            async with httpx.AsyncClient(timeout=240.0) as client:
+                resp = await client.post(
+                    GLM_BASE_URL,
+                    headers={"Authorization": f"Bearer {api_key}"},
+                    json={
+                        "model": model,
+                        "thinking": {"type": "disabled"},
+                        "messages": messages,
+                        "max_tokens": max_tokens,
+                        "temperature": 0.3,
+                    },
+                )
+            if resp.status_code == 429:
+                try:
+                    detail = resp.json().get("error", {}).get("message", "")
+                except Exception:
+                    detail = ""
+                if "1113" in detail:
+                    raise GLMError(f"GLM 429 rate limited/blocked: {detail[:200]}")
+                if attempts < 2 and ("1305" in detail or not detail): # default retry
+                    attempts += 1
+                    await asyncio.sleep(5)
+                    continue
+                raise GLMError(f"GLM 429 rate limited/blocked: {detail[:200]}")
+            resp.raise_for_status()
+            data = resp.json()
+            content_str = (data.get("choices") or [{}])[0].get("message", {}).get("content", "")
+            if not content_str:
+                raise GLMError("empty GLM reply")
+            
+            payload = _extract_json(content_str)
+            # An empty insights array is valid (a quiet chunk); only a
+            # non-list shape is malformed.
+            if not isinstance(payload.get("insights"), list):
+                raise GLMError("reply JSON has no insights array")
+
+            usage = data.get("usage") or {}
+            return GLMResult(
+                payload=payload,
+                prompt_tokens=int(usage.get("prompt_tokens") or 0),
+                completion_tokens=int(usage.get("completion_tokens") or 0),
+                total_tokens=int(usage.get("total_tokens") or 0)
+            )
+        except httpx.HTTPError as exc:
+            if attempts < 2:
+                attempts += 1
+                await asyncio.sleep(5)
+                continue
+            raise GLMError(f"GLM network error: {exc}")
+    
+    raise GLMError("GLM exhausted retries")
+
+async def request_chunk_findings(chunk_json: str) -> GLMResult:
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": "=== CHUNK EXTRACT ===\n" + chunk_json},
+    ]
+    return await chat(messages, 4096)
+
+async def request_synthesis(candidates_json: str) -> GLMResult:
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT + "\n\nSYNTHESIS INSTRUCTIONS: Merge duplicates, keep strongest evidence. Output exactly the same schema, max 40 insights. Evidence post ids MUST come ONLY from the provided candidates. Do not hallucinate post ids."},
+        {"role": "user", "content": "=== SYNTHESIS EXTRACT ===\n" + candidates_json},
+    ]
+    return await chat(messages, 8192)

@@ -1,12 +1,12 @@
-"""Analyst assistant cycle.
+"""Analyst assistant cycle (pipeline-v3, full-corpus map-reduce).
 
-No local/stub equivalent exists for a chat assistant, so this stage always
-records ``mode: skipped`` — same behaviour as when AI Hub's assistant token
-was unset. ``parse_assistant_reply`` and ``build_analysis_extract`` stay
-because they have no AI Hub coupling (pure JSON parsing / DB query building)
-and pipeline-v3 will reuse both against whatever model answers instead.
-
-# TODO(pipeline-v3): replace skip mode with a local model / GLM assistant call
+Each cycle: rank the whole non-empty corpus, chunk it (POSTS_PER_CHUNK posts
+per chunk), one GLM extractor call per chunk, then ONE synthesis call merging
+candidate findings into a single insight set. The gate inserts that set in
+supersede="all" mode: a successful run atomically replaces the entire
+previous active set (rollback leaves the old set untouched on any failure).
+Token usage from every GLM response is summed into the ``insight_runs``
+ledger row, including on failed/skipped runs (spend survives the rollback).
 """
 
 from __future__ import annotations
@@ -34,8 +34,13 @@ from app.services.database_session import get_run_session
 
 logger = logging.getLogger("analysis.assistant")
 
-MAX_EXTRACT_POSTS = 120
 MAX_EXTRACT_ENTITIES = 40
+MAX_EXTRACT_POSTS = 500  # synthesis header cap (totals + top entities feed the merge call)
+
+POSTS_PER_CHUNK = 200
+POST_TEXT_CHARS = 280
+MAX_CANDIDATES_PER_CHUNK = 8
+MAX_INSIGHTS = 40
 
 
 def parse_assistant_reply(content: str) -> list[dict]:
@@ -84,7 +89,7 @@ ANALYST_PROMPT = (
 
 
 async def build_analysis_extract(session: AsyncSession) -> str:
-    """The rolling dataset the Analyst would reason over, rendered for the message."""
+    """The rolling dataset aggregates for synthesis."""
     totals = {
         "posts": await session.scalar(select(func.count(Post.id))) or 0,
         "topics": await session.scalar(select(func.count(Topic.id))) or 0,
@@ -150,32 +155,27 @@ async def build_analysis_extract(session: AsyncSession) -> str:
     )
 
 
-async def build_request_extract(session: AsyncSession) -> str:
-    """The extract sized for the GLM request: 60 posts x 280 chars (~32KB).
 
-    The full extract (~93KB at 120x600) makes glm-4.5-flash spend its whole
-    completion budget on reasoning; the shrunk one returns clean JSON.
-    """
-    full = await build_analysis_extract(session)
-    data = json.loads(full)
-    data["posts"] = [{**p, "text": p["text"][:280]} for p in data["posts"][:60]]
-    return json.dumps(data, ensure_ascii=False)
 
+
+import time
+import os
+from datetime import timezone
 
 async def run_assistant_cycle(
     session: AsyncSession | None = None,
     run_id: int | None = None,
     forum_id: int | None = None,
+    triggered_by: str = "assistant_cycle",
 ) -> dict:
-    """Nightly analyst cycle: build extract -> GLM -> insights_gate.
-
-    GLM unavailable / fails -> skip mode (stats explain why), never crashes
-    the worker. When GLM answers, insights go through the SAME evidence gate
-    as the external ingest API — invalid evidence is rejected per-item.
-    """
     if session is None:
         async with get_run_session() as s:
-            return await run_assistant_cycle(s, run_id=run_id, forum_id=forum_id)
+            return await run_assistant_cycle(s, run_id=run_id, forum_id=forum_id, triggered_by=triggered_by)
+
+    from app.services import insights_gate
+    from app.services.analysis import glm_client
+    from app.services.analysis import corpus_chunks
+    from app.models import InsightRun, InsightRunStatus, PipelineRun
 
     own_run = run_id is None
     if own_run:
@@ -183,37 +183,97 @@ async def run_assistant_cycle(
             kind=RunKind.assistant,
             status=RunStatus.running,
             started_at=datetime.now(timezone.utc),
-            triggered_by="assistant_cycle",
+            triggered_by=triggered_by,
         )
         session.add(run)
         await session.flush()
         run_id = run.id
 
-    # --- GLM analysis -------------------------------------------------------
-    from app.services import insights_gate
-    from app.services.analysis import glm_client
+    insight_run = InsightRun(
+        run_id=run_id,
+        triggered_by=triggered_by,
+        model=os.environ.get("GLM_MODEL", "glm-4.5-flash"),
+        status=InsightRunStatus.running
+    )
+    session.add(insight_run)
+    await session.flush()
+    insight_run_id = insight_run.id
 
-    stats: dict
+    stats: dict = {}
+    exc_caught = None
+    t0 = time.time()
     try:
-        extract = await build_request_extract(session)
-        payload = await glm_client.request_insights(extract)
-    except Exception as exc:  # noqa: BLE001 — degrade, don't crash the worker
-        stats = {
-            "stage": "assistant_cycle",
-            "mode": "skipped",
-            "reason": f"GLM unavailable: {type(exc).__name__}: {str(exc)[:250]}",
+        rows = await corpus_chunks.fetch_ranked_posts(session)
+        insight_run.posts_covered = len(rows)
+        topics = set()
+        for r in rows:
+            if r.Topic:
+                topics.add(r.Topic.id)
+        insight_run.topics_covered = len(topics)
+
+        chunks = corpus_chunks.make_chunks(rows, POSTS_PER_CHUNK)
+        insight_run.chunk_calls = len(chunks)
+
+        candidates = []
+        for c in chunks:
+            chunk_json = corpus_chunks.render_chunk(c)
+            res = await glm_client.request_chunk_findings(chunk_json)
+            insight_run.prompt_tokens += res.prompt_tokens
+            insight_run.completion_tokens += res.completion_tokens
+            insight_run.total_tokens += res.total_tokens
+            
+            chunk_insights = res.payload.get("insights", [])[:MAX_CANDIDATES_PER_CHUNK]
+            for ins in chunk_insights:
+                ev_ids = [e.get("discourse_post_id") for e in ins.get("evidence", []) if "discourse_post_id" in e]
+                candidates.append({
+                    "type": ins.get("insight_type", ""),
+                    "title": ins.get("title", ""),
+                    "severity": ins.get("severity", ""),
+                    "summary": ins.get("body", ""),
+                    "evidence_post_ids": ev_ids
+                })
+
+        totals_json = await build_analysis_extract(session)
+        totals_dict = json.loads(totals_json)
+        
+        synthesis_input = {
+            "totals": totals_dict.get("totals", {}),
+            "candidates": candidates
         }
-        logger.info("assistant cycle skipped: %s", stats["reason"])
-    else:
-        parsed = insights_gate.parse_payload(payload)
-        if parsed is None:
-            stats = {
-                "stage": "assistant_cycle",
-                "mode": "rejected",
-                "reason": "GLM payload failed schema validation",
+        
+        synth_res = await glm_client.request_synthesis(json.dumps(synthesis_input, ensure_ascii=False))
+        insight_run.prompt_tokens += synth_res.prompt_tokens
+        insight_run.completion_tokens += synth_res.completion_tokens
+        insight_run.total_tokens += synth_res.total_tokens
+        
+        final_insights = synth_res.payload.get("insights", [])[:MAX_INSIGHTS]
+        
+        parsed = insights_gate.parse_payload(
+            {
+                "insights": final_insights,
+                "assistant_version": glm_client.ASSISTANT_VERSION,
+                "run_ref": triggered_by,
             }
+        )
+        if parsed is None:
+            insight_run.status = InsightRunStatus.failed
+            insight_run.error = "GLM payload failed schema validation"
+            stats = {"mode": "rejected", "reason": "validation"}
         else:
-            gate = await insights_gate.ingest_insights(session, parsed, run_id=run_id)
+            insight_run.insights_generated = len(final_insights)
+            gate = await insights_gate.ingest_insights(session, parsed, run_id=run_id, supersede="all")
+            
+            insight_run.status = InsightRunStatus.succeeded
+            if gate.accepted == 0 and len(final_insights) > 0:
+                insight_run.status = InsightRunStatus.failed
+                insight_run.error = "Gate rejected all insights"
+
+            insight_run.insights_accepted = gate.accepted
+            insight_run.insights_rejected = gate.rejected
+            if gate.errors:
+                err_str = "; ".join([str(e.model_dump()) for e in gate.errors])
+                insight_run.error = err_str[:1000]
+
             stats = {
                 "stage": "assistant_cycle",
                 "mode": "glm",
@@ -222,14 +282,75 @@ async def run_assistant_cycle(
                 "insights_rejected": gate.rejected,
                 "insight_ids": gate.insight_ids,
             }
-            if gate.errors:
-                stats["errors"] = [e.model_dump() for e in gate.errors][:10]
+        
+        insight_run.cost_usd = glm_client.estimate_cost_usd(insight_run.total_tokens)
+        insight_run.duration_ms = int((time.time() - t0) * 1000)
+
+    except Exception as exc:
+        exc_caught = exc
+
+    if exc_caught:
+        # Real spend already made must survive the rollback that unwinds the
+        # failed run — snapshot counters, restore them onto the fresh row.
+        spent_prompt = insight_run.prompt_tokens
+        spent_completion = insight_run.completion_tokens
+        spent_total = insight_run.total_tokens
+        spent_posts = insight_run.posts_covered
+        spent_topics = insight_run.topics_covered
+        spent_chunks = insight_run.chunk_calls
+
+        await session.rollback()
+
+        # Need to re-create the records because of the rollback
+        if own_run:
+            run = PipelineRun(
+                kind=RunKind.assistant,
+                status=RunStatus.running,
+                started_at=datetime.now(timezone.utc),
+                triggered_by=triggered_by,
+            )
+            session.add(run)
+            await session.flush()
+            run_id = run.id
+
+        insight_run = InsightRun(
+            run_id=run_id,
+            triggered_by=triggered_by,
+            model=os.environ.get("GLM_MODEL", "glm-4.5-flash"),
+        )
+        session.add(insight_run)
+
+        # GLM unavailable (missing key / unreachable / rate-blocked) is the
+        # designed skip: nothing changed, next window retries. Any other
+        # exception is a genuine failure.
+        msg = f"{type(exc_caught).__name__}: {str(exc_caught)[:250]}"
+        skipped = isinstance(exc_caught, glm_client.GLMError)
+        insight_run.status = (
+            InsightRunStatus.skipped if skipped else InsightRunStatus.failed
+        )
+        insight_run.error = msg
+        insight_run.posts_covered = spent_posts
+        insight_run.topics_covered = spent_topics
+        insight_run.chunk_calls = spent_chunks
+        insight_run.prompt_tokens = spent_prompt
+        insight_run.completion_tokens = spent_completion
+        insight_run.total_tokens = spent_total
+        insight_run.cost_usd = glm_client.estimate_cost_usd(spent_total)
+        insight_run.duration_ms = int((time.time() - t0) * 1000)
+        stats = {
+            "stage": "assistant_cycle",
+            "mode": "skipped" if skipped else "failed",
+            "reason": msg,
+        }
+        logger.info("assistant cycle skipped/failed: %s", stats["reason"])
 
     if own_run:
         run = await session.get(PipelineRun, run_id)
-        run.status = RunStatus.done
-        run.finished_at = datetime.now(timezone.utc)
-        run.stats = stats
-        run.triggered_by = f"assistant_cycle:{stats.get('mode', 'unknown')}"
+        if run:
+            run.status = RunStatus.done
+            run.finished_at = datetime.now(timezone.utc)
+            run.stats = stats
+            run.triggered_by = f"{triggered_by}:{stats.get('mode', 'unknown')}"
+    
     await session.commit()
     return stats

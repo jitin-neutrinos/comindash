@@ -1,3 +1,4 @@
+from sqlalchemy import func
 import json
 import logging
 import os
@@ -354,3 +355,80 @@ async def upsert_model_version(
     await session.commit()
     await session.refresh(row)
     return row
+
+from app.models import InsightRun, AssistantInsight
+from pydantic import BaseModel
+
+class InsightRunOut(BaseModel):
+    id: int
+    run_id: int | None
+    triggered_by: str
+    model: str
+    status: str
+    posts_covered: int
+    topics_covered: int
+    chunk_calls: int
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    cost_usd: float
+    duration_ms: int
+    insights_generated: int
+    insights_accepted: int
+    insights_rejected: int
+    error: str | None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+@router.get("/insight-runs")
+async def get_insight_runs(limit: int = 20, offset: int = 0, session: AsyncSession = Depends(get_session)):
+    limit = max(1, min(limit, 100))
+    total = await session.scalar(select(func.count(InsightRun.id)))
+    rows = await session.execute(
+        select(InsightRun)
+        .order_by(InsightRun.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
+    items = rows.scalars().all()
+    return {
+        "total": total or 0,
+        "items": [InsightRunOut.model_validate(item).model_dump() for item in items]
+    }
+
+@router.get("/insight-runs/{id}")
+async def get_insight_run_detail(id: int, session: AsyncSession = Depends(get_session)):
+    run = await session.get(InsightRun, id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Insight run not found")
+        
+    insights_rows = await session.execute(
+        select(
+            AssistantInsight.id, 
+            AssistantInsight.insight_type, 
+            AssistantInsight.severity, 
+            AssistantInsight.title, 
+            AssistantInsight.status, 
+            AssistantInsight.created_at
+        )
+        .where(AssistantInsight.run_id == run.run_id)
+        .order_by(AssistantInsight.created_at.desc())
+    )
+    
+    insights = [
+        {
+            "id": r.id,
+            "insight_type": r.insight_type.value if hasattr(r.insight_type, "value") else str(r.insight_type),
+            "severity": r.severity,
+            "title": r.title,
+            "status": r.status.value if hasattr(r.status, "value") else str(r.status),
+            "created_at": r.created_at
+        } for r in insights_rows
+    ]
+    
+    return {
+        "run": InsightRunOut.model_validate(run).model_dump(),
+        "insights": insights
+    }

@@ -267,6 +267,12 @@ export const METRIC_INFO = {
     how: 'One row per run, with what started it and how long it took.',
     fresh: 'Refreshes every 15 seconds.',
   },
+  adminInsightRuns: {
+    title: 'Insight runs',
+    what: 'Each run re-reads every post and produces one fresh set of insights that replaces the previous set — no duplicates pile up.',
+    how: 'One row per analysis run, with how many posts it read, what it cost to run, and how many insights it kept.',
+    fresh: 'Refreshes every 15 seconds. A new run starts whenever new posts arrive (and nightly as a fallback).',
+  },
   adminAudit: {
     title: 'Audit log',
     what: 'A tamper-evident record of who did what — manual runs, setting changes, access.',

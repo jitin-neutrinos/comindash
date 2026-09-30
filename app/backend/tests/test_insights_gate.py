@@ -123,7 +123,7 @@ class TestValidation:
 
 
 class TestHappyPath:
-    async def test_valid_ingest_and_versioned_supersede(self, client, session):
+    async def test_valid_ingest_and_full_replace(self, client, session):
         await seed_corpus(session)
         r = await client.post("/api/insights/ingest", json=_payload(), headers=_hdr())
         assert r.status_code == 200
@@ -144,8 +144,9 @@ class TestHappyPath:
         assert rows[0].status is InsightStatus.active
         assert rows[0].assistant_version == "v1"
 
-        # same title, new version → old superseded, new active
+        # different title, supersede='all' -> old superseded, new active
         payload_v2 = _payload(assistant_version="v2", run_ref="nightly-test-2")
+        payload_v2['insights'][0]['title'] = 'A completely different title'
         r2 = await client.post("/api/insights/ingest", json=payload_v2, headers=_hdr())
         assert r2.status_code == 200
         new_id = r2.json()["insight_ids"][0]
@@ -166,6 +167,73 @@ class TestHappyPath:
         by_status = {row.status for row in rows}
         assert by_status == {InsightStatus.active, InsightStatus.superseded}
 
+    
+    async def test_near_duplicate_rejected_within_run(self, client, session):
+        await seed_corpus(session)
+        payload = _payload()
+        ins1 = dict(payload["insights"][0])
+        ins1["title"] = "Studio 8 to 9 migration lacks plugin-SDK guidance"
+        ins2 = dict(payload["insights"][0])
+        ins2["title"] = "Studio 8->9 migration lacks plugin-SDK-specific guidance"
+        ins3 = dict(payload["insights"][0])
+        ins3["title"] = "Completely distinct title that should pass"
+        payload["insights"] = [ins1, ins2, ins3]
+        
+        r = await client.post("/api/insights/ingest", json=payload, headers=_hdr())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["accepted"] == 2
+        assert body["rejected"] == 1
+        assert "near-duplicate" in body["errors"][0]["errors"][0]
+
+    async def test_replace_all_atomic_on_empty_accept(self, client, session):
+        await seed_corpus(session)
+        r = await client.post("/api/insights/ingest", json=_payload(), headers=_hdr())
+        assert r.status_code == 200
+        body = r.json()
+        assert body["accepted"] == 1
+        
+        # Second payload entirely invalid
+        payload = _payload()
+        payload["insights"][0]["title"] = "New title"
+        payload["insights"][0]["evidence"] = [{"discourse_post_id": 999999, "quote": "ghost", "relevance_note": ""}]
+        
+        r2 = await client.post("/api/insights/ingest", json=payload, headers=_hdr())
+        assert r2.status_code == 422
+        
+        # The previous active set must be unchanged
+        from app.models import AssistantInsight, InsightStatus
+        from sqlalchemy import select
+        session.expire_all()
+        rows = (await session.execute(select(AssistantInsight))).scalars().all()
+        assert len(rows) == 1
+        assert rows[0].status == InsightStatus.active
+
+    async def test_supersede_title_mode_unchanged(self, session):
+        from app.services.insights_gate import ingest_insights, parse_payload
+        await seed_corpus(session)
+        payload = parse_payload(_payload())
+        await ingest_insights(session, payload, supersede="title")
+        
+        # Another with different title, title mode
+        payload2_dict = _payload()
+        payload2_dict["insights"][0]["title"] = "Another Title"
+        payload2 = parse_payload(payload2_dict)
+        await ingest_insights(session, payload2, supersede="title")
+        
+        # Another with same title as payload2, title mode
+        payload3 = parse_payload(payload2_dict)
+        await ingest_insights(session, payload3, supersede="title")
+        
+        from app.models import AssistantInsight, InsightStatus
+        from sqlalchemy import select
+        rows = (await session.execute(select(AssistantInsight))).scalars().all()
+        # We should have 3 insights: first one active, second one superseded, third one active
+        active = [r for r in rows if r.status == InsightStatus.active]
+        superseded = [r for r in rows if r.status == InsightStatus.superseded]
+        assert len(active) == 2
+        assert len(superseded) == 1
+
     async def test_partial_accept(self, client, session):
         await seed_corpus(session)
         payload = _payload()
@@ -185,7 +253,8 @@ class TestHappyPath:
 
 
 class TestAssistantSkipMode:
-    async def test_cycle_without_token_is_skip_not_crash(self, session):
+    async def test_cycle_without_token_is_skip_not_crash(self, session, monkeypatch):
+        monkeypatch.delenv("GLM_API_KEY", raising=False)
         from app.models import PipelineRun, RunKind
         from app.services.analysis.assistant import run_assistant_cycle
 
@@ -198,6 +267,21 @@ class TestAssistantSkipMode:
         ).scalar_one()
         assert run.status.value == "done"
         assert run.stats["mode"] == "skipped"
+
+    
+    async def test_skip_mode_records_insight_run(self, session, monkeypatch):
+        import os
+        from app.services.analysis.assistant import run_assistant_cycle
+        from app.models import InsightRun, InsightRunStatus
+        from sqlalchemy import select
+        
+        monkeypatch.delenv("GLM_API_KEY", raising=False)
+        stats = await run_assistant_cycle(session=session)
+        assert stats["mode"] == "skipped"
+        
+        run = (await session.execute(select(InsightRun).order_by(InsightRun.id.desc()))).scalars().first()
+        assert run.status == InsightRunStatus.skipped
+        assert "not set" in run.error
 
     async def test_parse_assistant_reply_json_variants(self):
         from app.services.analysis.assistant import parse_assistant_reply
