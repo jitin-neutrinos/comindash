@@ -73,13 +73,24 @@ export default function Overview() {
         </div>
       </header>
 
-      {/* ---- KPI row ------------------------------------------------------ */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+      {/* ---- KPI bento ------------------------------------------------------
+           12-col bento grid. On xl it fills the viewport height (auto-rows-fr
+           + a fixed section height), so the five KPIs compose as one hero
+           surface instead of a strip of equal boxes. Every tile carries its
+           real supporting data: deltas, the 14-day volume spark, the pace
+           count — never a bare number in a box. */}
+      <div
+        className="grid auto-rows-fr grid-cols-2 gap-4 md:grid-cols-6 xl:h-[calc(100dvh-11rem)] xl:min-h-[430px] xl:grid-cols-12"
+      >
         {loading ? (
-          Array.from({ length: 5 }).map((_, i) => <MetricSkeleton key={i} />)
+          Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className={i < 3 ? 'col-span-2 md:col-span-2 xl:col-span-4' : 'col-span-2 md:col-span-3 xl:col-span-6'}>
+              <MetricSkeleton />
+            </div>
+          ))
         ) : ov ? (
           <>
-            <div data-anim="kpi">
+            <div data-anim="kpi" className="col-span-2 md:col-span-2 xl:col-span-4">
               <MetricCard
                 label="Total posts"
                 value={ov.totalPosts}
@@ -87,9 +98,18 @@ export default function Overview() {
                 infoKey="totalPosts"
                 delta={d.posts}
                 polarity="neutral"
+                spark={
+                  <Sparkline
+                    series={volume.slice(-14).map((v) => ({ posts: v.count }))}
+                    accent={colors.blue}
+                    width={128}
+                    height={36}
+                    showNegative={false}
+                  />
+                }
               />
             </div>
-            <div data-anim="kpi">
+            <div data-anim="kpi" className="col-span-2 md:col-span-2 xl:col-span-4">
               <MetricCard
                 label="Avg sentiment"
                 value={ov.avgSentiment}
@@ -105,7 +125,7 @@ export default function Overview() {
                 deltaLabel="negative posts"
               />
             </div>
-            <div data-anim="kpi">
+            <div data-anim="kpi" className="col-span-2 md:col-span-2 xl:col-span-4">
               <MetricCard
                 label="High-priority"
                 value={ov.highPriorityCount}
@@ -117,20 +137,20 @@ export default function Overview() {
                 polarity="inverse"
               />
             </div>
-            <div data-anim="kpi">
+            <div data-anim="kpi" className="col-span-2 md:col-span-3 xl:col-span-6">
               <MetricCard
                 label="Active pain points"
                 value={ov.activePainPoints}
-                hint="unresolved"
+                hint={moving.length ? `${moving.length} gaining pace right now` : 'unresolved'}
                 accent={colors.salmon}
                 infoKey="activePainPoints"
                 /* No delta here on purpose: the `negative` window counts
                    negative-sentiment POSTS, not pain-point insights. Pinning
                    it to this number would claim a movement it doesn't measure.
-                   The negative-post trend gets its own card below. */
+                   The pace count in the hint is the honest movement signal. */
               />
             </div>
-            <div data-anim="kpi">
+            <div data-anim="kpi" className="col-span-2 md:col-span-3 xl:col-span-6">
               <MetricCard
                 label="Model confidence"
                 value={ov.modelConfidence}
