@@ -6,5 +6,5 @@ export default {
   theme: {
     extend: tailwindTheme,
   },
-  plugins: [],
+  plugins: [require('@tailwindcss/container-queries')],
 }

@@ -9,6 +9,7 @@
 //
 // Brand: White + Blue dominant, Celeste as this view's single accent, Salmon
 // reserved for genuine pain severity. One accent per surface, per brand-core.
+import { useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { getOverview, getInsightIntel, getTrends, useApi, formatDate } from '../api'
 import { insightPath } from '../slug'
@@ -40,6 +41,30 @@ export default function Overview() {
   const attention = [...items].sort((a, b) => attentionRank(a) - attentionRank(b)).slice(0, 4)
   const moving = items.filter((i) => i.momentum.state === 'surging' || i.momentum.state === 'rising')
   const d = ov?.deltas ?? {}
+
+  /* Normalized 14-day volume points for the sparkline, always an array.
+     `volume` returns different shapes (items array, series array, or a
+     scalar) depending on the endpoint; coerce to the last 14 daily points. */
+  const volPoints = useMemo(() => {
+    const pts = Array.isArray(volume)
+      ? volume
+      : Array.isArray(volume?.items ?? volume?.points ?? volume?.series)
+        ? (volume?.items ?? volume?.points ?? volume?.series ?? [])
+        : []
+    const tail = pts.slice(-14)
+    return tail.map((v) => ({ posts: v?.count ?? v?.value ?? v?.posts ?? 0 }))
+  }, [volume])
+
+  // 14-day sentiment mix for the sentiment tile's detail row — summed from
+  // the same trends payload the charts render, never derived from the average.
+  const sentMix = useMemo(() => {
+    const win = (Array.isArray(volume) ? volume : (volume?.points ?? volume?.items ?? [])).slice(-14)
+    const sum = (k) => win.reduce((acc, p) => {
+      const extra = p?.extra || p || {}
+      return acc + (extra[k] ?? p?.[k] ?? 0)
+    }, 0)
+    return { pos: Math.round(sum('pos')), neu: Math.round(sum('neu')), neg: Math.round(sum('neg')) }
+  }, [volume])
 
   return (
     <div ref={page} className="space-y-8">
@@ -100,12 +125,42 @@ export default function Overview() {
                 polarity="neutral"
                 spark={
                   <Sparkline
-                    series={volume.slice(-14).map((v) => ({ posts: v.count }))}
+                    series={(Array.isArray(volume?.items ?? volume?.points ?? volume?.series) ? volume : { points: [] })
+                      .slice ? (Array.from({ length: 14 }).map((_, i) => {
+                        const pts = Array.isArray(volume?.items ?? volume?.points ?? volume?.series) ? volume.items ?? volume.points ?? volume.series : []
+                        return { posts: (pts[i] || pts[i + (pts.length - 14)] || pts[pts.length - 1])?.count || 0 }
+                      }).filter(s => s.posts > 0 || s.posts === 0))
+                      :
+                      // Normal series path: take last 14 daily points
+                      ((Array.isArray(volume) ? volume : (volume?.points ?? volume?.items ?? volume?.series ?? [])).slice(-14).map((v) => ({ posts: v.count ?? v.value ?? 0 })))}
                     accent={colors.blue}
                     width={128}
                     height={36}
                     showNegative={false}
                   />
+                }
+                /* Landscape fill: real composition data behind the total. */
+                details={
+                  <dl className="grid grid-cols-3 gap-2 text-caption">
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">last 14d</dt>
+                      <dd className="text-small font-medium tabular-nums">
+                        {Math.round(d.posts?.value ?? 0).toLocaleString()}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">prev 14d</dt>
+                      <dd className="text-small font-medium tabular-nums">
+                        {Math.round(d.posts?.previous ?? 0).toLocaleString()}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">topics</dt>
+                      <dd className="text-small font-medium tabular-nums">
+                        {(ov.totalTopics ?? 0).toLocaleString()}
+                      </dd>
+                    </div>
+                  </dl>
                 }
               />
             </div>
@@ -123,6 +178,29 @@ export default function Overview() {
                 delta={d.negative}
                 polarity="inverse"
                 deltaLabel="negative posts"
+                /* Landscape fill: the 14-day sentiment mix, from the same
+                   series the Metrics page charts. */
+                details={
+                  <dl className="grid grid-cols-3 gap-2 text-caption">
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">positive</dt>
+                      <dd className="text-small font-medium tabular-nums">{sentMix.pos}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">neutral</dt>
+                      <dd className="text-small font-medium tabular-nums">{sentMix.neu}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">negative</dt>
+                      <dd
+                        className="text-small font-medium tabular-nums"
+                        style={{ color: sentMix.neg > sentMix.pos ? colors.salmon : undefined }}
+                      >
+                        {sentMix.neg}
+                      </dd>
+                    </div>
+                  </dl>
+                }
               />
             </div>
             <div data-anim="kpi" className="col-span-2 md:col-span-2 xl:col-span-4">
@@ -135,6 +213,25 @@ export default function Overview() {
                 delta={d.high_priority}
                 /* More high-priority posts is worse, so up must read red. */
                 polarity="inverse"
+                /* Landscape fill: the raw 14-day window behind the delta. */
+                details={
+                  <dl className="grid grid-cols-3 gap-2 text-caption">
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">last 14d</dt>
+                      <dd className="text-small font-medium tabular-nums">{Math.round(d.high_priority?.value ?? 0)}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">prev 14d</dt>
+                      <dd className="text-small font-medium tabular-nums">{Math.round(d.high_priority?.previous ?? 0)}</dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">share</dt>
+                      <dd className="text-small font-medium tabular-nums">
+                        {ov.totalPosts ? Math.round((ov.highPriorityCount / ov.totalPosts) * 100) : 0}%
+                      </dd>
+                    </div>
+                  </dl>
+                }
               />
             </div>
             <div data-anim="kpi" className="col-span-2 md:col-span-3 xl:col-span-6">
@@ -148,6 +245,33 @@ export default function Overview() {
                    negative-sentiment POSTS, not pain-point insights. Pinning
                    it to this number would claim a movement it doesn't measure.
                    The pace count in the hint is the honest movement signal. */
+                /* Landscape fill: the two highest-momentum pains, live ranked. */
+                details={
+                  attention.length ? (
+                    <ul className="space-y-1.5">
+                      {attention.slice(0, 2).map((i) => (
+                        <li key={i.id} className="min-w-0">
+                          <Link
+                            to={insightPath(i)}
+                            className="flex items-center gap-2 text-caption hover:underline"
+                          >
+                            <span
+                              className="h-1.5 w-1.5 shrink-0 rounded-pill"
+                              style={{ backgroundColor: typeColor(i.insightType) }}
+                              aria-hidden="true"
+                            />
+                            <span className="min-w-0 truncate font-medium">{i.title}</span>
+                            {i.momentum?.state && i.momentum.state !== 'steady' && (
+                              <span className="ml-auto shrink-0 font-light text-muted">
+                                {i.momentum.state === 'surging' ? '↑↑' : i.momentum.state === 'rising' ? '↑' : '↓'}
+                              </span>
+                            )}
+                          </Link>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : undefined
+                }
               />
             </div>
             <div data-anim="kpi" className="col-span-2 md:col-span-3 xl:col-span-6">
@@ -157,6 +281,24 @@ export default function Overview() {
                 format={(v) => `${(v * 100).toFixed(0)}%`}
                 hint="across AI stages"
                 infoKey="modelConfidence"
+                /* Landscape fill: the newest-post recency + pipeline state,
+                   the two things that qualify how fresh the numbers are. */
+                details={
+                  <dl className="grid grid-cols-2 gap-2 text-caption">
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">newest post</dt>
+                      <dd className="text-small font-medium">
+                        {ov.lastPostAt ? formatDate(ov.lastPostAt) : '—'}
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="truncate font-light text-muted">pipeline</dt>
+                      <dd className="text-small font-medium">
+                        {ov.pipelineHealth?.assistant?.status === 'done' ? 'all stages healthy' : 'check admin'}
+                      </dd>
+                    </div>
+                  </dl>
+                }
               />
             </div>
           </>

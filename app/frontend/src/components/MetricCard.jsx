@@ -23,6 +23,7 @@ export default function MetricCard({
   deltaLabel,
   polarity = 'neutral',
   spark,
+  details,
 }) {
   const numRef = useRef(null)
   useCountUp(numRef, value, format)
@@ -69,6 +70,18 @@ export default function MetricCard({
             </div>
           )}
         </div>
+        {/* Details region: only renders when the caller supplies content AND
+            the tile is wide enough (container query). This is what fills
+            landscape/wide tiles — real supporting data instead of empty air.
+            Its mt-auto splits leftover tile height with the delta row's, so
+            extra space distributes evenly instead of pooling at the bottom. */}
+        {details && (
+          <div className="@container">
+            <div className="hidden @[280px]:mt-auto @[280px]:block @[280px]:border-t @[280px]:border-hairline @[280px]:pt-3">
+              {details}
+            </div>
+          </div>
+        )}
         {(delta || hint) && (
           <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-1 pt-2.5">
             {delta && (
