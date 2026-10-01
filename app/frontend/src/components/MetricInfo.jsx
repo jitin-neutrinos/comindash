@@ -128,17 +128,17 @@ export default function MetricInfo({ metricKey, accent, className = '' }) {
       onMouseLeave={scheduleClose}
       onPointerDown={(e) => e.stopPropagation()}
     >
-      <div className="space-y-4">
+      <div className="space-y-2.5">
         <div data-sec="what">
-          <h4 className="text-caption font-semibold" style={{ color: accent }}>What is this?</h4>
+          <h4 className="text-caption font-semibold leading-snug mb-1.5" style={{ color: accent }}>What is this?</h4>
           <p className="mt-1 break-words text-small text-muted">{info.what}</p>
         </div>
         <div data-sec="how">
-          <h4 className="text-caption font-semibold" style={{ color: accent }}>How is it worked out?</h4>
+          <h4 className="text-caption font-semibold leading-snug mb-1" style={{ color: accent }}>How is it worked out?</h4>
           <p className="mt-1 break-words text-small text-muted">{info.how}</p>
         </div>
         <div data-sec="fresh">
-          <h4 className="text-caption font-semibold" style={{ color: accent }}>How fresh is it?</h4>
+          <h4 className="text-caption font-semibold leading-snug mb-1.5" style={{ color: accent }}>How fresh is it?</h4>
           <p className="mt-1 break-words text-small text-muted">{info.fresh}</p>
         </div>
         {graph.nodes.length > 0 && (

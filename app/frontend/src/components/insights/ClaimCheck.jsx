@@ -140,7 +140,7 @@ const SupportBar = ({ observed, expected, color }) => {
 }
 
 const Evidence = ({ items }) => (
-  <ul className="mt-3 space-y-2 border-t border-line pt-3">
+  <ul className="mt-3 space-y-2.5 border-t border-line pt-3">
     {items.map((p) => (
       <li key={p.postId} className="min-w-0">
         <a
@@ -173,7 +173,7 @@ const ClaimCard = ({ c }) => {
   return (
     <li className="min-w-0 rounded-2xl border border-line bg-surface p-4">
       {/* The claim, as a sentence. */}
-      <p className="min-w-0 text-body leading-relaxed">
+      <p className="min-w-0 text-body leading-relaxed break-words whitespace-normal">
         <Endpoint ep={c.subject} />{' '}
         <span className="text-muted">{c.relation}</span>{' '}
         <Endpoint ep={c.object} />
@@ -249,16 +249,21 @@ const Summary = ({ summary }) => {
   if (!parts.length) return null
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+    <div className="flex flex-wrap items-center gap-2.5">
       {parts.map(([key, n]) => {
         const v = verdictOf(key)
         return (
-          <span key={key} className="inline-flex items-center gap-1.5 text-caption">
-            <span
-              className="h-2 w-2 rounded-full"
-              style={{ background: v.color }}
-              aria-hidden="true"
-            />
+          <span
+            key={key}
+            className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 text-caption shadow-sm"
+          >
+            {v.color && (
+              <span
+                className="h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-inset ring-black/10"
+                style={{ background: v.color }}
+                aria-hidden="true"
+              />
+            )}
             <span className="tabular-nums font-semibold">{n}</span>
             <span className="text-muted">{v.word.toLowerCase()}</span>
           </span>
