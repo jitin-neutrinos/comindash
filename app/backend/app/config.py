@@ -27,6 +27,9 @@ class Settings(BaseSettings):
     discourse_api_key: str = ""
     discourse_api_username: str = "system"
     discourse_category_id: int | None = None
+    # Comma-separated Discourse category ids to keep OUT of the corpus entirely
+    # (internal test categories must never be indexed or analysed).
+    discourse_excluded_category_ids: str = "42"
     # Incremental passes stop early at the cursor, so a small cap is fine.
     # The FIRST pass (no cursor yet) is a backfill and uses the larger cap —
     # capping the backfill silently truncates forum history forever.

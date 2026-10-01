@@ -141,6 +141,26 @@ class TestFetchTopicsSince:
         assert truncated is False
 
     @respx.mock
+    async def test_excluded_category_dropped(self):
+        respx.get(f"{BASE}/categories.json").respond(
+            json={
+                "category_list": {
+                    "categories": [
+                        {"id": 7, "name": "eng", "slug": "eng"},
+                        {"id": 42, "name": "Bot Testing", "slug": "bot-testing"},
+                    ]
+                }
+            }
+        )
+        bot = _topic(9, "Internal test", age_hours=1, category_id=42)
+        real = _topic(2, "Real topic", age_hours=2, category_id=7)
+        respx.get(f"{BASE}/latest.json").respond(
+            json={"topic_list": {"topics": [bot, real], "more_topics_url": None}}
+        )
+        topics, _, _ = await _client().fetch_topics_since(None)
+        assert [t["discourse_topic_id"] for t in topics] == [2]
+
+    @respx.mock
     async def test_first_page_failure_raises(self):
         respx.get(f"{BASE}/categories.json").respond(
             json={"category_list": {"categories": []}}

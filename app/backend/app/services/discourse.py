@@ -84,6 +84,11 @@ class DiscourseClient:
             if category_id is not None
             else (s.discourse_category_id or None)
         )
+        self.excluded_category_ids: set[int] = {
+            int(x)
+            for x in (s.discourse_excluded_category_ids or "").split(",")
+            if x.strip()
+        }
         self.request_delay = s.discourse_request_delay_ms / 1000
         self.timeout = s.discourse_timeout_ms / 1000
         self.retry_wait_mult = retry_wait_mult
@@ -267,6 +272,10 @@ class DiscourseClient:
                     ):
                         reached_cursor = True
                         break
+                    if self.excluded_category_ids and topic.get(
+                        "category_id", -1
+                    ) in self.excluded_category_ids:
+                        continue
                     topics.append(
                         {
                             "discourse_topic_id": topic["id"],
