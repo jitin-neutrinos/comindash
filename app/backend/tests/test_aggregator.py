@@ -127,7 +127,12 @@ class TestRollups:
 class TestDailyAggregates:
     async def test_shape(self, session):
         await seed_corpus(session)
-        daily = await daily_aggregates(session, days=30)
+        # The corpus is anchored at a fixed past date (NOW) while the
+        # aggregator's cutoff is relative to the real wall clock, so any
+        # "N-day" window eventually empties out. This test only checks the
+        # response shape and that all seeded posts are counted, so use a window
+        # wide enough to always include them.
+        daily = await daily_aggregates(session, days=3650)
         assert set(daily) == {"volume", "sentiment", "priority"}
         assert all({"date", "posts"} == set(v) for v in daily["volume"])
         assert sum(v["posts"] for v in daily["volume"]) == 4

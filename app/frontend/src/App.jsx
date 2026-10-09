@@ -1,6 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { useState } from 'react'
 import Sidebar from './components/Sidebar'
+import LoginGate from './components/LoginGate'
 import { NAV, default as Header } from './components/Header'
 import StaleBanner from './components/StaleBanner'
 import Overview from './pages/Overview'
@@ -73,7 +74,9 @@ function Shell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <Shell />
+      <LoginGate>
+        <Shell />
+      </LoginGate>
     </BrowserRouter>
   )
 }

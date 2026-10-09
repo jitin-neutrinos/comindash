@@ -7,7 +7,7 @@ GLMError so the cycle degrades to skip mode (never crash the worker).
 
 Config via env:
   GLM_API_KEY   — z.ai API key (required; missing → skip mode)
-  GLM_MODEL     — default glm-4.5-flash; prod .env pins glm-5.3
+  GLM_MODEL     — default glm-5.3
 """
 
 from __future__ import annotations
@@ -174,7 +174,7 @@ async def chat(messages: list[dict], max_tokens: int) -> GLMResult:
     api_key = os.environ.get("GLM_API_KEY", "")
     if not api_key:
         raise GLMError("GLM_API_KEY not set")
-    model = os.environ.get("GLM_MODEL", "glm-4.5-flash")
+    model = os.environ.get("GLM_MODEL", "glm-5.3")
 
     attempts = 0
     while attempts < 3:

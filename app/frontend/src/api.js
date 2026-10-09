@@ -1091,3 +1091,23 @@ export const getInsightRun = (id) =>
       createdAt: str(ins.created_at),
     })),
   }))
+
+/* ---- auth ------------------------------------------------------------------ */
+export async function login(password) {
+  const res = await fetch(`${BASE}/auth/login`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ password }),
+  })
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.detail || 'Login failed')
+  return body
+}
+
+export const logout = () =>
+  fetch(`${BASE}/auth/logout`, { method: 'POST', credentials: 'include' })
+
+export const authStatus = () =>
+  fetch(`${BASE}/auth/status`, { credentials: 'include' }).then((r) => r.json())
+

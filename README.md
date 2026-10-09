@@ -98,7 +98,7 @@ docker compose up --build   # backend entrypoint runs `alembic upgrade head` fir
 | `DISCOURSE_API_KEY` | — | Admin key, read-only (without it: public/no-auth ingestion where possible) |
 | `ANALYSIS_SIDECAR_URL` | `http://172.22.0.1:8101` (containers) | Laya + GLiNER sidecar |
 | `GLM_API_KEY` | — | z.ai key; **empty ⇒ assistant cycle runs in skip mode** |
-| `GLM_MODEL` | `glm-4.5-flash` | Assistant model id |
+| `GLM_MODEL` | `glm-5.3` | Assistant model id |
 | `INGEST_TOKEN` | `change-me-local` | Token for `POST /api/insights/ingest` |
 | `SCHEDULER_ENABLED` | `true` | Backend APScheduler: hourly ingest+analyze, nightly assistant cycle |
 

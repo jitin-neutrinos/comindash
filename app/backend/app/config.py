@@ -52,6 +52,20 @@ class Settings(BaseSettings):
     # --- Insight ingest gate -------------------------------------------------
     ingest_token: str = "change-me-local"
 
+    # --- Dashboard auth ------------------------------------------------------
+    # The plaintext is hashed in memory at first use (never stored); set
+    # DASHBOARD_PASSWORD_HASH instead to ship a pre-computed Argon2id hash and
+    # keep the plaintext off the host entirely.
+    dashboard_password: str = ""
+    dashboard_password_hash: str = ""
+    # HMAC key for session cookies. If empty, falls back to INGEST_TOKEN so a
+    # default deployment is never signed with a known constant.
+    dashboard_session_secret: str = ""
+    dashboard_session_ttl_hours: int = 24
+    # Per-IP brute-force lockout.
+    login_max_attempts: int = 10
+    login_lockout_minutes: int = 15
+
     # --- Pipeline behaviour ---------------------------------------------------
     scheduler_enabled: bool = True
     analysis_batch_size: int = 500  # posts analysed per stage per run

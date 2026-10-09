@@ -2,6 +2,7 @@
 
 from app.routes import (
     admin,
+    auth,
     exports,
     health,
     insights,
@@ -16,6 +17,7 @@ from app.routes import (
 )
 
 ALL_ROUTERS = [
+    auth.router,
     admin.router,
     health.router,
     overview.router,

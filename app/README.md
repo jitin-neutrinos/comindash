@@ -62,7 +62,7 @@ stubs only if the sidecar stays down. Containers reach the host sidecar over Doc
 |-----|---------|---------|
 | `GLM_API_KEY` | — | z.ai key; **empty ⇒ skip mode** (cycle recorded as skipped, pipeline unaffected) |
 | `GLM_BASE_URL` | `https://api.z.ai/api/coding/paas/v4/chat/completions` | GLM endpoint |
-| `GLM_MODEL` | `glm-4.5-flash` | Model id (prod `.env` pins a stronger model) |
+| `GLM_MODEL` | `glm-5.3` | Assistant model id |
 
 ### Pipeline + retention
 | Var | Default | Purpose |

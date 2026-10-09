@@ -80,6 +80,10 @@ def create_app(start_scheduler: bool | None = None) -> FastAPI:
     )
     for router in ALL_ROUTERS:
         app.include_router(router)
+    # Auth gate last so its middleware wraps every route (incl. docs/metrics).
+    from app.routes.auth import install_auth_middleware
+
+    install_auth_middleware(app)
     Instrumentator().instrument(app).expose(app)
 
     @app.middleware("http")
