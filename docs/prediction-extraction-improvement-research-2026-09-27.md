@@ -1,5 +1,7 @@
 # Prediction & Extraction Improvement Research (2026-09-27)
 
+> **Historical record.** Paths below to training data (`app/exports/`, `ml/data_split/`) and one-off training scripts are not in this repo — datasets are regenerated from the database, and one-off scripts were removed during repo sanitization. Kept for provenance.
+
 Ground truth for the numbers below: `docs/model-audit-2026-09-27.md`. Current
 setup (read from `ml/laya/train_single_gpu.py`, `ml/pipeline/inference_server.py`,
 `ml/gliner/`): Laya is a GRPO-style proper-scoring-rule fine-tune with

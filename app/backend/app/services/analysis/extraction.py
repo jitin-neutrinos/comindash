@@ -1,8 +1,7 @@
 """NER -> extractions table.
 
-Deterministic regex NER, stamped ``model_version="stub-1"``.
-
-# TODO(pipeline-v3): replace stub with local model / GLM call
+Served by the inference sidecar (fine-tuned GLiNER, ``model_version="laya-v1"``);
+the regex NER below is the deterministic stub fallback (``model_version="stub-1"``).
 """
 
 from __future__ import annotations

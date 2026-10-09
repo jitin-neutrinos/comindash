@@ -2,8 +2,9 @@
 
 ALL environment variables live here. Secrets stay server-side: nothing in this
 module is ever exposed through the API. Discourse credentials are optional —
-a missing key drops ingestion into public/keyless mode. Analysis stages run
-in stub mode unconditionally (# TODO(pipeline-v3): local model / GLM config).
+a missing key drops ingestion into public/keyless mode. Analysis is served by
+the host-run inference sidecar (Laya priority/sentiment + GLiNER NER); when the
+sidecar is unreachable the stages fall back to deterministic stubs.
 """
 
 from __future__ import annotations

@@ -10,9 +10,9 @@ Job kinds
 ---------
 ingest         -> backend app.services.ingestion (incremental Discourse pull)
 analyze        -> backend app.services.aggregator / app.services.analysis.* (NER,
-                  priority, sentiment, rollups; stub mode)
+                  priority, sentiment, rollups; sidecar models, stub fallback)
 assistant_cycle -> backend app.services.analysis.assistant (nightly analyst
-                  cycle; skip mode with no assistant backend configured)
+                  cycle; skip mode when GLM_API_KEY is unset)
 
 Backend coupling
 ----------------

@@ -13,7 +13,7 @@
 | **Structured JSON logging** — printf logs are unsearchable; JSON with a fixed schema is the baseline | Every log line from backend/worker = one JSON object: `{ts, level, service, run_id, job_id, request_id, msg, ...fields}` |
 | **Correlation ids everywhere** — every log carries the ids needed to trace one unit of work end-to-end | `run_id` (pipeline run), `job_id` (queue job), `request_id` (HTTP request). A single dashboard drill-down can show every log line for that analysis run |
 | **Log levels with sampling discipline** — keep 100% of ERROR/WARN, sample or disable DEBUG in prod | ERROR/WARN always kept; INFO always kept (our volume is low); DEBUG off by default, toggled via env |
-| **Three signals** — logs (why), metrics (what), traces (where) | Logs: mandatory (your requirement). Metrics: lightweight counters (posts ingested, jobs failed, AI Hub latency). Traces: **deferred** — single-host app, correlation ids give us the same answer without a tracing backend; add OTel tracing only if we later split services |
+| **Three signals** — logs (why), metrics (what), traces (where) | Logs: mandatory (your requirement). Metrics: lightweight counters (jobs processed/failed/retried, ingest throughput, analysis-sidecar latency). Traces: **deferred** — single-host app, correlation ids give us the same answer without a tracing backend; add OTel tracing only if we later split services |
 | **Central aggregation with retention** | Loki (5-day retention enforced at config level) for container logs; database `audit_logs` table for admin-facing operational events; daily JSON log files on disk as the raw permanent-ish layer |
 | **Retention is config, not hope** — uniform retention wastes storage | 5 days exactly, enforced twice: Loki `retention_period=120h` + logrotate on file logs (7 daily files max ≈ same window) |
 | **Golden signals** (latency, traffic, errors, saturation) for each service | Exposed as `/metrics` (Prometheus format) on backend + worker; scraped by Prometheus |
@@ -55,7 +55,7 @@
   - JSON renderer to stdout (Docker captures); level via `LOG_LEVEL` env (default INFO)
 - FastAPI middleware: assign `request_id` (uuid4) per request, echo it back as `X-Request-ID` response header, log method/path/status/duration_ms at INFO, exceptions at ERROR with traceback
 - Worker: sets `run_id`/`job_id` context per job; job start/finish/fail/retry lines at INFO/WARN/ERROR
-- AI Hub client: one INFO line per external call (`{provider: aihub, model, latency_ms, status}`), ERROR on failure — this doubles as the AI cost/latency audit trail
+- Analysis sidecar: one INFO line per call (`{provider: sidecar, stage, latency_ms, status}`), ERROR on failure — this doubles as the model cost/latency audit trail; the GLM assistant cycle logs per-call token usage into the `insight_runs` ledger
 - Never log: API keys, tokens, post body content (ids only), user PII
 
 ### 3.2 Log shipping + retention (5 days)
@@ -67,7 +67,7 @@
 
 ### 3.3 Metrics (lightweight)
 - `prometheus-fastapi-instrumentator` on the backend: HTTP request count/latency histogram per route (route templates only — no raw paths, per cardinality rules)
-- Custom counters: `ingest_posts_total`, `aihub_calls_total{model,status}`, `jobs_processed_total{kind,status}`, `job_retry_total`
+- Custom counters: `jobs_processed_total{kind,status}`, `job_retry_total`
 - **Prometheus** container, 15s scrape, 7-day retention (metrics are cheap; 5-day rule applied to logs only, as specified)
 - Worker exposes the same `/metrics` via a tiny internal HTTP server
 

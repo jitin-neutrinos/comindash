@@ -1,10 +1,9 @@
 """Sentiment classifier -> sentiment_results.
 
-Deterministic lexicon, stamped ``model_version="stub-1"``. Intensity is
-derived from the winning class's word-count margin so it lives on the same
-0..1 scale a real model's confidence would produce.
-
-# TODO(pipeline-v3): replace stub with local model / GLM call
+Served by the inference sidecar (Laya classifier, ``model_version="laya-v1"``);
+the lexicon below is the deterministic stub fallback (``model_version="stub-1"``).
+Intensity is derived from the winning class's word-count margin so it lives on
+the same 0..1 scale a real model's confidence would produce.
 """
 
 from __future__ import annotations

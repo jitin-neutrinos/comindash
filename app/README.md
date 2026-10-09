@@ -1,6 +1,12 @@
 # Neutrinos — Community Insights Dashboard
 
-Turns Discourse community activity into prioritized insights: a FastAPI + Postgres/pgvector backend ingests topics and posts, AI Hub models (with a deterministic stub fallback) extract entities, priority and sentiment, and an AI Hub assistant produces evidence-backed insights — surfaced in a branded React dashboard.
+Turns Discourse community activity into prioritized insights: a FastAPI + Postgres/pgvector
+backend ingests topics and posts, a host-run inference sidecar (fine-tuned **Laya** classifier +
+**GLiNER** NER) extracts priority, sentiment and entities, and a nightly **GLM** assistant cycle
+produces evidence-backed insights — surfaced in a branded React dashboard.
+
+Every stage has a deterministic stub fallback, so the stack runs end-to-end with no models and
+no tokens.
 
 ## Run locally
 
@@ -15,42 +21,69 @@ docker compose up --build    # the backend entrypoint runs `alembic upgrade head
 | Frontend | http://localhost:8082                  |
 | Postgres | `127.0.0.1:5433` (user `insights`, db `insights`) |
 
-Without AI Hub tokens the whole stack runs end-to-end in stub mode (`model_version="stub-1"`): sentiment via lexicon, priority via keyword heuristics, NER via regex. Adding real tokens switches models over with zero code change.
+Without the sidecar the analysis stages run in stub mode (`model_version="stub-1"`): sentiment via
+lexicon, priority via keyword heuristics, NER via regex. Point the backend at the sidecar and the
+same stages switch to real models (`model_version="laya-v1"`) with zero code change.
+
+## How analysis runs
+
+| Stage | Real backend | Stub fallback |
+|-------|--------------|---------------|
+| Priority | Laya classifier via sidecar `POST /classify` | keyword heuristic |
+| Sentiment | Laya classifier via sidecar `POST /classify` | lexicon + word-count margin |
+| NER | fine-tuned GLiNER via sidecar `POST /extract` | regex |
+| Assistant cycle | z.ai GLM (chunk extractor + synthesis merge) | skip mode (recorded `skipped`) |
+
+The sidecar (`../ml/pipeline/inference_server.py`) is host-run and **socket-activated**: nothing
+holds the GPU while no analysis is due, and it self-exits after an idle window, releasing all VRAM.
+The first call after an idle window waits for the ~10–15s cold start (retried), then falls back to
+stubs only if the sidecar stays down. Containers reach the host sidecar over Docker's host gateway
+(`http://172.22.0.1:8101`); on the host it is `http://127.0.0.1:8101`.
 
 ## Environment variables
 
-### Required
+### Required for real ingestion
 | Var | Purpose |
 |-----|---------|
 | `DB_PASSWORD` | Postgres password (compose default: `insights_local`) |
-| `DATABASE_URL` | Set by compose for backend/worker (`postgresql+asyncpg://insights:…@db:5432/insights`); required if running outside compose |
-| `INGEST_TOKEN` | Bearer-style token the AI Hub assistant connector sends to `POST /api/insights/ingest` (header `X-Ingest-Token`) |
+| `DATABASE_URL` | Set by compose for backend/worker; required if running outside compose |
 | `DISCOURSE_BASE_URL` | Community site to ingest, e.g. `https://community.neutrinos.com` |
+| `DISCOURSE_API_KEY` | Admin API key, read-only scope. Without it ingestion runs in public/no-auth mode where possible |
+| `DISCOURSE_API_USERNAME` | `system` — username the key is issued for |
+| `DISCOURSE_CATEGORY_ID` | Restrict ingestion to one category (optional) |
 
-### Optional (real ingestion + real AI)
+### Analysis models
 | Var | Default | Purpose |
 |-----|---------|---------|
-| `DISCOURSE_API_KEY` | — | Admin API key, read-only scope. Without it ingestion runs in public/no-auth mode where possible |
-| `DISCOURSE_API_USERNAME` | `system` | Username the key is issued for |
-| `DISCOURSE_CATEGORY_ID` | — | Restrict ingestion to one category |
-| `AIHUB_BASE_URL` | `https://aihub-staging.neutrinos.com` | AI Hub environment (staging/sandbox first) |
-| `AIHUB_TOKEN_NER` | — | Bearer token for the NER/text-extraction model |
-| `AIHUB_TOKEN_PRIORITY` | — | Bearer token for the priority classifier |
-| `AIHUB_TOKEN_SENTIMENT` | — | Bearer token for the sentiment classifier |
-| `AIHUB_ASSISTANT_TOKEN` | — | Bearer token for the analyst assistant |
-| `AIHUB_NER_DEPLOYMENT_ID` | — | Deployment id of the NER model |
-| `AIHUB_PRIORITY_DEPLOYMENT_ID` | — | Deployment id of the priority model |
-| `AIHUB_SENTIMENT_DEPLOYMENT_ID` | — | Deployment id of the sentiment model |
-| `AIHUB_ASSISTANT_ID` | — | Assistant id for the analyst assistant |
-| `AIHUB_KNOWLEDGE_SOURCE_IDS` | — | Comma-separated knowledge source ids mapped to the assistant |
+| `ANALYSIS_SIDECAR_URL` | `http://172.22.0.1:8101` in containers, `http://127.0.0.1:8101` on host | Laya + GLiNER inference sidecar |
+
+### Assistant cycle (z.ai GLM)
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `GLM_API_KEY` | — | z.ai key; **empty ⇒ skip mode** (cycle recorded as skipped, pipeline unaffected) |
+| `GLM_BASE_URL` | `https://api.z.ai/api/coding/paas/v4/chat/completions` | GLM endpoint |
+| `GLM_MODEL` | `glm-4.5-flash` | Model id (prod `.env` pins a stronger model) |
+
+### Pipeline + retention
+| Var | Default | Purpose |
+|-----|---------|---------|
 | `SCHEDULER_ENABLED` | `true` | Backend APScheduler: hourly ingest+analyze, nightly assistant cycle |
 | `INGEST_INTERVAL_MINUTES` | `60` | Ingestion cadence |
 | `ASSISTANT_CYCLE_HOUR` | `2` | Hour of day (UTC) for the assistant cycle |
+| `ANALYSIS_BATCH_SIZE` | `500` | Posts analysed per stage per run |
+| `INGEST_TOKEN` | `change-me-local` | Token for `POST /api/insights/ingest` (`X-Ingest-Token` header) |
+| `RUN_RETENTION_DAYS` / `JOB_DONE_RETENTION_DAYS` / `JOB_DEAD_RETENTION_DAYS` / `AUDIT_RETENTION_DAYS` | `90` / `14` / `30` / `180` | Housekeeping windows |
 
-Any missing `AIHUB_TOKEN_*` ⇒ that stage runs in SKIP/stub mode (logged, pipeline run marked `skipped`) — the app never crashes on missing tokens.
+### Observability + alerts
+| Var | Default | Purpose |
+|-----|---------|---------|
+| `LOKI_URL` / `PROMETHEUS_URL` | `http://loki:3100` / `http://prometheus:9090` | Log/metric backends surfaced in the admin UI |
+| `NTFY_URL` / `NTFY_TOPIC` / `NTFY_TOKEN` | `http://172.22.0.1:8086/` / `comindash-alerts` / — | Operational alerts; empty token disables |
+| `STORAGE_WARN_PCT` / `STORAGE_CRIT_PCT` | `80` / `92` | Disk alert thresholds |
+| `LOG_LEVEL` / `LOG_DIR` | `INFO` / `/app/logs` | Rotating JSONL fallback sink (unwritable ⇒ stdout only) |
 
-The verified AI Hub REST contract (endpoints, bodies, response shapes) and the three v2 plan
-commitments that have no API behind them are documented in `../implementation-plan.md` §9.
+A missing `GLM_API_KEY` puts the assistant cycle in skip mode; a missing sidecar puts the three
+analysis stages in stub mode. The app never crashes on a missing value.
 
 ## Giving it real data
 
@@ -60,30 +93,20 @@ commitments that have no API behind them are documented in `../implementation-pl
 3. Copy the generated key into `.env` as `DISCOURSE_API_KEY`.
 4. Optionally set `DISCOURSE_CATEGORY_ID` (visible in a category's URL, e.g. `/c/engineering/42` → `42`).
 
-### 2. AI Hub sandbox tokens
+### 2. Analysis sidecar
+Run the host-side sidecar so the containers can reach it:
 
-**One token per model is all you need.** An AI Hub token is scoped to a single model *and* a single
-model version, and already carries the deployment binding (`ai-hub/tokens`) — no deployment id is
-sent in any request. Tokens can only be created for models that are already deployed, and the value
-is shown once.
+```bash
+systemctl --user start comindash-sidecar.socket      # recommended (socket-activated, GPU on demand)
+# or, foreground:
+ml/laya/.venv/bin/python ml/pipeline/inference_server.py
+```
 
-| `.env` var | Where in AI Hub UI |
-|------------|--------------------|
-| `AIHUB_TOKEN_NER` | **Tokens** → Sandbox → **Add** → Training Type `Extraction`, Data Type `Text`, pick the NER model + version, Expiry **Never** |
-| `AIHUB_TOKEN_PRIORITY` | same, Training Type `Prediction`, the priority model + version |
-| `AIHUB_TOKEN_SENTIMENT` | same, Training Type `Prediction`, the sentiment model + version |
-| `AIHUB_ASSISTANT_TOKEN` | same, Training Type `Assistant`, the analyst assistant + version |
+Check `GET http://127.0.0.1:8101/health` returns `{"status":"ok","laya":true,"gliner":true,...}`.
+Without it the stack still runs — every analysis stage falls back to its stub.
 
-Optional, for traceability only (recorded on `model_versions`, never sent in a body):
-`AIHUB_NER_DEPLOYMENT_ID`, `AIHUB_PRIORITY_DEPLOYMENT_ID`, `AIHUB_SENTIMENT_DEPLOYMENT_ID`,
-`AIHUB_ASSISTANT_ID`.
-
-Leave `AIHUB_KNOWLEDGE_SOURCE_IDS` empty to auto-discover every knowledge source mapped to the
-assistant. Leave `AIHUB_INPUT_FIELD` empty unless a model was trained from a multi-column CSV —
-check a model's **Integration** page ("copy the cURL") to see whether it takes `{"text": …}` or
-`{"input": {"<column>": …}}`.
-
-Then restart: `docker compose up -d` — the pipeline switches from stub to real models automatically.
+### 3. Assistant cycle
+Set `GLM_API_KEY` to enable the nightly insight cycle. Then `docker compose up -d`.
 
 ## Validation
 
@@ -91,16 +114,18 @@ Then restart: `docker compose up -d` — the pipeline switches from stub to real
 ./scripts/validate.sh
 ```
 
-Creates `.venv-validate`, installs backend + worker requirements, runs the backend selfcheck, `pytest backend/tests -q`, and a worker smoke check (boot, connect-or-skip DB). Prints `[ OK ]/[SKIP]/[FAIL]` per step; exits non-zero only on real failures.
+Creates `.venv-validate`, installs backend + worker requirements, runs the backend selfcheck,
+`pytest backend/tests -q`, and a worker smoke check (boot, connect-or-skip DB). Prints
+`[ OK ]/[SKIP]/[FAIL]` per step; exits non-zero only on real failures.
 
 ## Layout
 
 ```
 app/
-├── backend/    FastAPI app, services, Alembic, tests   → :8080
+├── backend/    FastAPI app, services, Alembic migrations, tests   → :8080
 ├── worker/     DB-backed job queue worker (ingest / analyze / assistant_cycle)
-├── frontend/   React 18 + Vite + Tailwind dashboard    → :8081
-├── scripts/    validate.sh
-├── db/         shared migration helpers
-└── specs/      SPEC.md — authoritative contracts
+├── frontend/   React + Vite + Tailwind dashboard                  → :8082
+├── scripts/    validate.sh, comindash-db-backup.sh
+├── loki-config.yml, promtail-config.yml, prometheus.yml   observability stack
+└── docker-compose.yml   full stack definition
 ```

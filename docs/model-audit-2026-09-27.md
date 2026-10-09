@@ -1,5 +1,7 @@
 # Model & Data Audit — Prediction + Extraction (2026-09-27)
 
+> **Historical record.** Paths below to training data (`app/exports/`, `ml/data_split/`) and one-off training scripts are not in this repo — datasets are regenerated from the database, and one-off scripts were removed during repo sanitization. Kept for provenance.
+
 Scope: Laya fine-tune (priority/sentiment) + GLiNER (NER) — data, training,
 and measured production quality. All numbers below are measured this session,
 not copied from earlier reports.

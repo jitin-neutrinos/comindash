@@ -1,5 +1,7 @@
 # Named Entity Extraction — Neutrinos-Relevant Products & Names
 
+> **Historical record.** Paths below to training data (`app/exports/`, `ml/data_split/`) and one-off training scripts are not in this repo — datasets are regenerated from the database, and one-off scripts were removed during repo sanitization. Kept for provenance.
+
 Verified via: neutrinos-docs MCP (public docs endpoint live 2026-09-27), web extract of documentation.neutrinos.com/article/ai-hub/overview, web search of official docs (documentation.neutrinos.com, bitbucket references in doc links), and this session's audit (`docs/model-audit-2026-09-27.md`).
 
 ## What the user specified (strict)

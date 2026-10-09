@@ -1,5 +1,10 @@
 # Community Insights Dashboard — Implementation Plan v2 (AI Hub-Native)
 
+> **Historical plan — superseded.** The AI Hub direction described below was replaced during
+> build by a local inference sidecar (Laya priority/sentiment + GLiNER NER) plus a GLM (z.ai)
+> assistant cycle. Kept for provenance; see the root [`README.md`](../README.md) and
+> [`../app/README.md`](../app/README.md) for how the system actually runs today.
+
 **Project:** Neutrinos Community Discourse NLP Analysis & Insights Platform
 **Folder:** `app/` (compose stack: backend, worker, frontend, db) + `ml/` (inference sidecar) + `docs/`
 **MVP source:** an early hackathon prototype (audited and superseded by this repo's `app/` stack)

@@ -1,5 +1,7 @@
 # Sentiment rubric audit — 2026-09-27 (manual pass for fix #3)
 
+> **Historical record.** Paths below to training data (`app/exports/`, `ml/data_split/`) and one-off training scripts are not in this repo — datasets are regenerated from the database, and one-off scripts were removed during repo sanitization. Kept for provenance.
+
 Evidence source: `ml/data_split/holdout_sentiment.csv` + audit notes from 2026-09-27 session.
 
 Holdout: 363 rows (read via stdlib csv). Class distribution (observed): pos ~35, neu ~261, neg ~67.

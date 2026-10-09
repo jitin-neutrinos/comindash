@@ -1,5 +1,7 @@
 # Laya priority/sentiment: product-context fine-tune experiment (2026-09-28)
 
+> **Historical record.** Paths below to training data (`app/exports/`, `ml/data_split/`) and one-off training scripts are not in this repo — datasets are regenerated from the database, and one-off scripts were removed during repo sanitization. Kept for provenance.
+
 ## Question
 Does injecting NER-derived product identity (e.g. "trinity", "ai_hub") into the
 Laya priority/sentiment classifier's input improve its judgment, following the

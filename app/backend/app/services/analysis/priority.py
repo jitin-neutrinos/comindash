@@ -1,8 +1,8 @@
 """Priority classifier -> priority_results.
 
-Deterministic keyword heuristics, stamped ``model_version="stub-1"``.
-
-# TODO(pipeline-v3): replace stub with local model / GLM call
+Served by the inference sidecar (Laya classifier, ``model_version="laya-v1"``);
+the keyword heuristic below is the deterministic stub fallback
+(``model_version="stub-1"``) used by tests and whenever the sidecar is down.
 """
 
 from __future__ import annotations

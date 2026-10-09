@@ -1,5 +1,7 @@
 # Label Cleanup Pass (2026-09-27)
 
+> **Historical record.** Paths below to training data (`app/exports/`, `ml/data_split/`) and one-off training scripts are not in this repo — datasets are regenerated from the database, and one-off scripts were removed during repo sanitization. Kept for provenance.
+
 Scope: resolve the 3 outstanding AMBIGUOUS-KEPT rows in
 `relabel_review_priority.csv` and fix the 3 mislabeled holdout rows
 identified in `docs/model-audit-2026-09-27.md` §3 ("the 10 missed high
