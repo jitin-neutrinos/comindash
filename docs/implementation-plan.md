@@ -1,8 +1,8 @@
 # Community Insights Dashboard — Implementation Plan v2 (AI Hub-Native)
 
 **Project:** Neutrinos Community Discourse NLP Analysis & Insights Platform
-**Folder:** `/home/notjitin/Work/Neutrinos/community-insights-dashboard/`
-**MVP source:** `source/discourse-insights/` — audited in `source/source-audit.md`
+**Folder:** `app/` (compose stack: backend, worker, frontend, db) + `ml/` (inference sidecar) + `docs/`
+**MVP source:** an early hackathon prototype (audited and superseded by this repo's `app/` stack)
 **Status:** v2.1 — supersedes v1 per revised direction: **all analysis runs on Neutrinos AI Hub**
 **Revised 2026-09-11:** §2, §4 WP2/WP3, §6 and the new §9 corrected against the AI Hub REST
 contract (documentation.neutrinos.com, via the neutrinos-docs MCP). Three v2 commitments were
@@ -264,7 +264,7 @@ Indexes on every FK + (created_at), (priority, confidence), (sentiment), unique 
 - Autonomous Mode / assistant harness (future multi-assistant chaining) — ai-hub/autonomous-mode
 - Discourse REST API + rate limits — https://meta.discourse.org/t/discourse-rest-api-documentation/22706 , https://meta.discourse.org/t/api-rate-limits/208405
 - Prioritization frameworks (impact vs volume) — https://getthematic.com/insights/most-common-complaints-arent-biggest-problems
-- MVP audit (basis for rebuild decisions) — `source/source-audit.md`
+- MVP audit (basis for rebuild decisions) — the prototype audit (not in this repo)
 
 ## 8. Resolved Decisions (2026-09-09, per Jitin)
 
