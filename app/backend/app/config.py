@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # default deployment is never signed with a known constant.
     dashboard_session_secret: str = ""
     dashboard_session_ttl_hours: int = 24
+    # Idle auto-logoff: after this many minutes with no user activity the
+    # client signs out (server token exp above is the absolute cap).
+    dashboard_idle_minutes: int = 30
     # Per-IP brute-force lockout.
     login_max_attempts: int = 10
     login_lockout_minutes: int = 15

@@ -7,6 +7,7 @@ import {
   getOpsOverview,
   saveOpsConfig,
   triggerMaintenance,
+  logout,
   relTime,
   useApi,
 } from '../api'
@@ -317,6 +318,24 @@ export default function Settings() {
       {msg && (
         <p className={`text-sm ${msg.kind === 'ok' ? 'text-emerald-600' : 'font-medium'}`}>{msg.text}</p>
       )}
+
+      <FrameCard title="Session">
+        <Row
+          label="Sign out of this dashboard"
+          hint="Ends your session on this device. You'll need the password to get back in."
+        >
+          <button
+            type="button"
+            onClick={async () => {
+              await logout()
+              window.location.reload()
+            }}
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-1.5 text-sm font-medium text-red-700 hover:bg-red-100"
+          >
+            Sign out
+          </button>
+        </Row>
+      </FrameCard>
     </div>
   )
 }

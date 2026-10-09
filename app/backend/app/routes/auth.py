@@ -46,9 +46,12 @@ def _client_ip(request: Request) -> str:
 
 @router.get("/status")
 async def status(request: Request) -> dict:
+    s = get_settings()
     return {
         "configured": auth.auth_configured(),
         "authenticated": auth.verify_token(request.cookies.get(auth.COOKIE_NAME)),
+        "idle_minutes": s.dashboard_idle_minutes,
+        "session_ttl_hours": s.dashboard_session_ttl_hours,
     }
 
 

@@ -25,6 +25,9 @@ os.environ["SCHEDULER_ENABLED"] = "false"
 # `anon_client` (no cookie) drives the auth tests.
 os.environ["DASHBOARD_PASSWORD"] = "test-password"
 os.environ["DASHBOARD_SESSION_SECRET"] = "test-session-secret"
+# Shadow the live .env's DASHBOARD_PASSWORD_HASH (tests run from app/, so the
+# real .env is loaded); an empty env var wins over the file value.
+os.environ["DASHBOARD_PASSWORD_HASH"] = ""
 # Tests assert stub-mode behaviour: point the analysis sidecar at a dead port
 # so every analyse_texts call exercises the stub path instead of a real
 # running sidecar (SIDECAR_URL is read at import time by _stage).

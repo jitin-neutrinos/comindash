@@ -1,11 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import { login } from '../api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { login, logout as apiLogout } from '../api'
+import { useIdleLogout } from '../auth'
 import logoSymbolWhite from '../brand/logo/neutrinos-symbol-white.png'
 
 /**
  * Password-only login gate. Sits in front of the whole app: it asks the
  * backend whether a session cookie is already valid, and only renders its
  * children once it is. No username — the backend holds a single Argon2id hash.
+ * Once authenticated it also runs the idle auto-logoff timer.
  */
 export default function LoginGate({ children }) {
   const [state, setState] = useState('checking') // checking | anon | authed | error
@@ -13,7 +15,23 @@ export default function LoginGate({ children }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [shake, setShake] = useState(false)
+  const [idleMinutes, setIdleMinutes] = useState(30)
   const inputRef = useRef(null)
+
+  const doLogout = useCallback(async () => {
+    try {
+      await apiLogout()
+    } catch {
+      /* drop the local session regardless */
+    }
+    setState('anon')
+  }, [])
+
+  const { warning, staySignedIn } = useIdleLogout({
+    enabled: state === 'authed',
+    idleMinutes,
+    onLogout: doLogout,
+  })
 
   useEffect(() => {
     let alive = true
@@ -21,7 +39,11 @@ export default function LoginGate({ children }) {
       credentials: 'include',
     })
       .then((r) => r.json())
-      .then((d) => alive && setState(d.authenticated ? 'authed' : 'anon'))
+      .then((d) => {
+        if (!alive) return
+        if (d.idle_minutes) setIdleMinutes(d.idle_minutes)
+        setState(d.authenticated ? 'authed' : 'anon')
+      })
       .catch(() => alive && setState('anon'))
     return () => {
       alive = false
@@ -50,7 +72,41 @@ export default function LoginGate({ children }) {
     }
   }
 
-  if (state === 'authed') return children
+  if (state === 'authed') {
+    return (
+      <>
+        {warning !== null && (
+          <div className="fixed inset-0 z-[100] grid place-items-center bg-midnight/60 backdrop-blur-sm">
+            <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-white p-6 shadow-2xl">
+              <h2 className="text-lg font-medium text-black">Still there?</h2>
+              <p className="mt-1 text-sm text-muted">
+                For your security you'll be signed out in{' '}
+                <span className="font-medium tabular-nums text-black">{warning}s</span> unless you
+                keep working.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={doLogout}
+                  className="rounded-lg border border-line px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                >
+                  Sign out now
+                </button>
+                <button
+                  type="button"
+                  onClick={staySignedIn}
+                  className="rounded-lg bg-blue px-4 py-2 text-sm font-medium text-white hover:brightness-110"
+                >
+                  Stay signed in
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {children}
+      </>
+    )
+  }
 
   if (state === 'checking') {
     return (
