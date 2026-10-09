@@ -238,6 +238,29 @@ html.dark .shimmer {
   background: rgba(0, 102, 255, 0.35);
 }
 .sk-phone-header { background: #00053d; }
+/* macOS traffic-light dot */
+.sk-tl {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+}
+/* sidebar nav glyph (rounded square, the active one accent-filled) */
+.sk-nav {
+  width: 15px;
+  height: 15px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.22);
+}
+.sk-nav--on { background: rgba(0, 102, 255, 0.9); }
+/* phone bottom-tab glyph */
+.sk-tab {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: rgba(15, 23, 42, 0.18);
+}
+.sk-tab--on { background: rgba(0, 102, 255, 0.6); }
 .sk-line::after,
 .sk-block::after,
 .sk-bar::after {

@@ -156,11 +156,13 @@ export default function LoginGate({ children }) {
           <img src={logoHorizontalWhite} alt="Neutrinos" className="h-12 w-auto shrink-0 self-start" />
 
           <div className="mt-5 shrink-0">
-            <h1 className="neu-rise max-w-[18ch] font-sans text-[1.5rem] font-medium leading-[1.14] tracking-tight text-white xl:text-[1.85rem]">
+            {/* Each of these is a single line that wraps only at the section
+                edge (no max-w constraint) — one sentence, one line. */}
+            <h1 className="neu-rise font-sans text-[1.5rem] font-medium leading-[1.2] tracking-tight text-white xl:text-[1.85rem]">
               Hear your community before it speaks twice.
             </h1>
             <p
-              className="neu-rise mt-2.5 hidden max-w-[44ch] text-sm font-light leading-relaxed text-white/65 xl:block"
+              className="neu-rise mt-2.5 text-sm font-light leading-relaxed text-white/85"
               style={{ animationDelay: '80ms' }}
             >
               Every post read, every signal ranked — pain points, trends and sentiment turned into
@@ -169,9 +171,8 @@ export default function LoginGate({ children }) {
           </div>
 
           {/* device pair: MacBook Pro 16 with an iPhone 17 Pro Max in front,
-              overlapping asymmetrically. Sized by the available height so the
-              pair never overflows; the phone reads as ~half the laptop's height
-              (true relative scale) and overlaps its lower-right edge. */}
+              overlapping asymmetrically. Height-driven so the pair never
+              overflows its space or touches the stats line below. */}
           <div
             className="neu-rise flex min-h-0 flex-1 items-center"
             style={{ animationDelay: '160ms' }}
@@ -204,10 +205,11 @@ export default function LoginGate({ children }) {
               </div>
 
               {/* Phone — in FRONT, overlapping the laptop's right edge, dropped
-                  lower for an asymmetric composition. ~52% of the laptop height. */}
+                  lower for an asymmetric composition but kept clear of the stats
+                  line below. ~52% of the laptop height. */}
               <div
                 className="absolute z-10 hidden xl:block"
-                style={{ right: '1%', bottom: '-6%', height: '52%', aspectRatio: '1520 / 3068' }}
+                style={{ right: '1%', bottom: '2%', height: '52%', aspectRatio: '1520 / 3068' }}
               >
                 <div
                   className="absolute overflow-hidden bg-[#fbfbfd]"
@@ -269,14 +271,14 @@ export default function LoginGate({ children }) {
 
           <h2 className="neu-rise text-2xl font-medium tracking-tight text-black">Welcome back</h2>
           <p
-            className="neu-rise mt-1.5 text-sm font-light text-muted"
+            className="neu-rise mt-1.5 text-sm text-black/70"
             style={{ animationDelay: '60ms' }}
           >
             Enter your password to open the dashboard.
           </p>
 
           <form onSubmit={submit} className="neu-rise mt-8" style={{ animationDelay: '120ms' }}>
-            <label htmlFor="pw" className="mb-2 block text-sm font-medium text-black">
+            <label htmlFor="pw" className="mb-2 block text-sm font-semibold text-black">
               Password
             </label>
             <div className="relative">
@@ -347,7 +349,7 @@ export default function LoginGate({ children }) {
           </form>
 
           <p
-            className="neu-rise mt-6 text-center text-xs font-light text-muted"
+            className="neu-rise mt-6 text-center text-xs text-black/70"
             style={{ animationDelay: '180ms' }}
           >
             Session signs out automatically after {idleMinutes} minutes of inactivity.
