@@ -35,6 +35,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:  # noqa: BLE001 — DB may not be up yet; not fatal
         logger.warning("startup reconciliation skipped: %s", e)
 
+    # boot-time catch-up: if the nightly assistant cycle slot passed while we
+    # were down, run it now instead of waiting a full day (2026-10-09 outage)
+    if settings.scheduler_enabled and app.state._start_scheduler:
+        try:
+            from app.services.scheduler import catch_up_missed_assistant_cycle
+
+            await catch_up_missed_assistant_cycle()
+        except Exception as e:  # noqa: BLE001 — DB may not be up yet; not fatal
+            logger.warning("assistant cycle catch-up skipped: %s", e)
+
     if settings.scheduler_enabled and app.state._start_scheduler:
         from app.services.scheduler import create_scheduler
 
