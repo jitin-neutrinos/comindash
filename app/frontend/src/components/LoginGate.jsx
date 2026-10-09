@@ -3,8 +3,9 @@ import { login, logout as apiLogout } from '../api'
 import { useIdleLogout } from '../auth'
 import logoSymbolWhite from '../brand/logo/neutrinos-symbol-white.png'
 import logoHorizontalWhite from '../brand/logo/neutrinos-horizontal-white-tagline.png'
-import shotLaptop from '../marketing/shot-laptop.png'
-import shotPhone from '../marketing/shot-phone.png'
+import { SkeletonScreen, SkeletonStage, useSkeletonRotation } from './SkeletonScreen'
+import iphoneFrame from '../marketing/iphone17-promax-frame.png'
+import macbookFrame from '../marketing/macbook-pro-16-frame.png'
 
 /**
  * Password-only login gate, twin-column, fixed to the viewport (no scroll).
@@ -34,6 +35,7 @@ export default function LoginGate({ children }) {
   const [showPw, setShowPw] = useState(false)
   const [idleMinutes, setIdleMinutes] = useState(30)
   const inputRef = useRef(null)
+  const { page, leavingPage, ref: skRef } = useSkeletonRotation()
 
   const doLogout = useCallback(async () => {
     try {
@@ -151,7 +153,7 @@ export default function LoginGate({ children }) {
         />
 
         <div className="relative flex h-full min-h-0 flex-col">
-          <img src={logoHorizontalWhite} alt="Neutrinos" className="h-6 w-auto shrink-0 self-start" />
+          <img src={logoHorizontalWhite} alt="Neutrinos" className="h-12 w-auto shrink-0 self-start" />
 
           <div className="mt-5 shrink-0">
             <h1 className="neu-rise max-w-[18ch] font-sans text-[1.5rem] font-medium leading-[1.14] tracking-tight text-white xl:text-[1.85rem]">
@@ -172,52 +174,58 @@ export default function LoginGate({ children }) {
             style={{ animationDelay: '160ms' }}
           >
             <div className="flex max-h-full min-h-0 items-end justify-center gap-5">
-              {/* Laptop: light bezel so it reads against the dark blue panel */}
+              {/* Laptop: real MacBook Pro 16 frame (jamesjingyi/mockup-device-frames).
+                  Screen area of the 4256x2834 PNG is 3456x2170 at (400,364). */}
               <div className="flex min-h-0 flex-col items-center">
-                <div className="min-h-0 rounded-lg bg-white/25 p-2 ring-1 ring-white/40 shadow-[0_20px_50px_-16px_rgba(0,0,0,0.5)]">
+                <div className="relative" style={{ height: '34dvh', aspectRatio: '4256 / 2834' }}>
+                  <div
+                    className="absolute overflow-hidden bg-white"
+                    style={{
+                      left: `${(400 / 4256) * 100}%`,
+                      top: `${(364 / 2834) * 100}%`,
+                      width: `${(3456 / 4256) * 100}%`,
+                      height: `${(2170 / 2834) * 100}%`,
+                      borderRadius: '0.8%',
+                    }}
+                  >
+                    <SkeletonStage form="laptop" page={page} leavingPage={leavingPage} hostRef={skRef} />
+                  </div>
                   <img
-                    src={shotLaptop}
-                    alt="Community Insights dashboard on a laptop"
+                    src={macbookFrame}
+                    alt="Community Insights on a MacBook Pro 16"
                     loading="eager"
                     decoding="async"
-                    className="block h-auto max-h-[34dvh] w-auto max-w-full rounded-[3px] bg-white object-contain"
+                    className="pointer-events-none absolute inset-0 h-full w-full"
                   />
                 </div>
-                {/* laptop base — wider than the screen, like a real laptop */}
-                <div className="h-2.5 w-[112%] shrink-0 rounded-b-[10px] bg-gradient-to-b from-white/45 to-white/25 ring-1 ring-white/30" />
-                <div className="h-1 w-[18%] shrink-0 rounded-b-full bg-white/40" />
               </div>
 
-              {/* Phone: iPhone 17 Pro Max frame (titanium) with status bar + Safari chrome */}
-              <div className="hidden min-h-0 shrink-0 xl:flex">
-                <div className="flex min-h-0 flex-col overflow-hidden rounded-[2.1rem] bg-gradient-to-b from-[#3a3f4a] to-[#1c2027] p-[3px] shadow-[0_24px_60px_-16px_rgba(0,0,0,0.8)] ring-1 ring-white/25">
-                  {/* titanium side rails */}
-                  <div className="min-h-0 overflow-hidden rounded-[1.95rem] bg-[#0b0f1a]">
-                    <div className="relative flex max-h-[34dvh] flex-col">
-                      {/* iOS status bar */}
-                      <div className="flex shrink-0 items-center justify-between bg-white px-4 pt-1.5 pb-1 text-[8px] font-semibold text-black">
-                        <span className="tabular-nums">9:41</span>
-                        <span className="absolute left-1/2 top-0 h-4 w-16 -translate-x-1/2 rounded-b-[10px] bg-[#0b0f1a]" />
-                        <span className="flex items-center gap-1">
-                          <svg width="12" height="8" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
-                          <svg width="14" height="8" viewBox="0 0 22 12" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="18" height="11" rx="3"/><rect x="2" y="2" width="13" height="8" rx="1.5" fill="currentColor"/><rect x="20" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>
-                        </span>
-                      </div>
-                      {/* Safari URL bar */}
-                      <div className="flex shrink-0 items-center justify-center gap-1.5 bg-white/95 px-3 pb-1.5 text-[8px] text-black/60">
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-                        <span className="truncate">comindash.jitinnair.com</span>
-                      </div>
-                      {/* page content */}
-                      <img
-                        src={shotPhone}
-                        alt="Community Insights on an iPhone"
-                        loading="lazy"
-                        decoding="async"
-                        className="block h-auto max-h-[26dvh] w-auto object-contain"
-                      />
-                    </div>
+              {/* Phone: real iPhone 17 Pro Max frame (device-frames-media, 1520x3068, 9:16
+                  screen 1320x2868 at 100,100). Skeleton fills the screen rect. */}
+              <div className="hidden min-h-0 shrink-0 xl:block">
+                <div
+                  className="relative"
+                  style={{ width: '148px', aspectRatio: '1520 / 3068' }}
+                >
+                  <div
+                    className="absolute overflow-hidden bg-[#fbfbfd]"
+                    style={{
+                      left: '6.58%',
+                      top: '3.26%',
+                      width: '86.84%',
+                      height: '93.48%',
+                      borderRadius: '13% / 6.5%',
+                    }}
+                  >
+                    <SkeletonScreen form="phone" page={page} />
                   </div>
+                  <img
+                    src={iphoneFrame}
+                    alt="Community Insights on an iPhone 17 Pro Max"
+                    loading="lazy"
+                    decoding="async"
+                    className="pointer-events-none absolute inset-0 h-full w-full"
+                  />
                 </div>
               </div>
             </div>

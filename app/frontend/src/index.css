@@ -221,9 +221,35 @@ html.dark .shimmer {
   }
 }
 
-/* --- Login screen ------------------------------------------------------- */
-.neu-rise {
-  animation: neuRise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+/* --- Skeleton screens (login mockups) ----------------------------------- */
+/* Shimmer: one sweeping highlight, transform-only (GPU-safe). */
+.sk-line,
+.sk-block,
+.sk-bar,
+.sk-dot,
+.sk-phone-header {
+  position: relative;
+  overflow: hidden;
+  background: rgba(15, 23, 42, 0.10);
+}
+.sk-bar { background: rgba(0, 102, 255, 0.35); }
+.sk-dot {
+  width: 16px; height: 16px; border-radius: 9999px; flex-shrink: 0;
+  background: rgba(0, 102, 255, 0.35);
+}
+.sk-phone-header { background: #00053d; }
+.sk-line::after,
+.sk-block::after,
+.sk-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: translateX(-100%);
+  animation: skSweep 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+@keyframes skSweep {
+  100% { transform: translateX(100%); }
 }
 /* The login page is exactly one viewport tall — never scroll it. */
 .neu-login-root {
