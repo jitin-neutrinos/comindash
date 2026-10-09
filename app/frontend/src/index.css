@@ -15,6 +15,15 @@
     60% { transform: translateX(-5px); }
     80% { transform: translateX(5px); }
   }
+  /* Login: staggered entrance (transform+opacity only, GPU-safe). */
+  @keyframes neuRise {
+    from { opacity: 0; transform: translateY(14px); filter: blur(3px); }
+    to { opacity: 1; transform: translateY(0); filter: blur(0); }
+  }
+  @keyframes neuFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-18px); }
+  }
   body {
     @apply bg-mist font-sans font-light leading-relaxed text-black antialiased;
   }
@@ -210,4 +219,52 @@ html.dark .shimmer {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* --- Login screen ------------------------------------------------------- */
+.neu-rise {
+  animation: neuRise 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+/* The login page is exactly one viewport tall — never scroll it. */
+.neu-login-root {
+  height: 100dvh;
+  overflow: hidden;
+}
+.neu-login-panel {
+  background-image:
+    linear-gradient(180deg, var(--neu-midnight-blue) 0%, #00021a 100%);
+}
+/* Brand base rules pin .neu headings/paragraphs to ink; the dark panel needs
+   them light. These come last in source, so they win the specificity tie. */
+.neu-login-panel h1,
+.neu-login-panel h2,
+.neu-login-panel p {
+  color: #ffffff;
+}
+.neu-login-panel p {
+  color: rgba(255, 255, 255, 0.66);
+}
+/* Momentum orbs: soft blue light, perpetually drifting (transform only). */
+.neu-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.5;
+  will-change: transform;
+}
+.neu-orb--a {
+  width: 340px;
+  height: 340px;
+  top: -80px;
+  left: -60px;
+  background: radial-gradient(circle, rgba(0, 102, 255, 0.55), transparent 70%);
+  animation: neuFloat 9s ease-in-out infinite;
+}
+.neu-orb--b {
+  width: 300px;
+  height: 300px;
+  bottom: 12%;
+  right: -80px;
+  background: radial-gradient(circle, rgba(77, 148, 255, 0.38), transparent 70%);
+  animation: neuFloat 12s ease-in-out infinite reverse;
 }
