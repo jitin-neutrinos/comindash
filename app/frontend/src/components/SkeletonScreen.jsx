@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import neuSymbolWhite from '../brand/logo/neutrinos-symbol-white.png'
 
 /**
  * Animated skeleton screens for the login mockups.
@@ -29,19 +30,17 @@ function Block({ w = '100%', h = 40, r = 8, dim = 0.35, children, className = ''
   )
 }
 
-/* ---------- Neutrinos symbol (inline) ---------- */
-function NeuMark({ size = 16, color = '#fff' }) {
+/* ---------- Neutrinos symbol (the real brand mark) ---------- */
+function NeuMark({ size = 16 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        d="M4 20V4l8 9V4h4v16l-8-9v9H4Z"
-        fill="none"
-        stroke={color}
-        strokeWidth="1.8"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </svg>
+    <img
+      src={neuSymbolWhite}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden="true"
+      className="shrink-0 object-contain"
+    />
   )
 }
 

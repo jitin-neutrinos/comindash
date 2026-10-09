@@ -279,6 +279,22 @@ html.dark .shimmer {
   height: 100dvh;
   overflow: hidden;
 }
+/* The login page is a FIXED LIGHT surface in both themes: the dark-mode ink
+   flip (html.dark .neu p/h1..h6 → near-white) would otherwise put white text on
+   the white login panel. !important is deliberate — it overrides a theme rule
+   that has higher specificity (html.dark .neu p). */
+.neu-login-light,
+.neu-login-light h1,
+.neu-login-light h2,
+.neu-login-light h3,
+.neu-login-light label,
+.neu-login-light input {
+  color: #000 !important;
+}
+.neu-login-light p,
+.neu-login-light .text-muted {
+  color: rgba(0, 0, 0, 0.72) !important;
+}
 .neu-login-panel {
   background-image:
     linear-gradient(180deg, var(--neu-midnight-blue) 0%, #00021a 100%);

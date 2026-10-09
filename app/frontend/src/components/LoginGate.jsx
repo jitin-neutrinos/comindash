@@ -171,17 +171,18 @@ export default function LoginGate({ children }) {
           </div>
 
           {/* device pair: MacBook Pro 16 with an iPhone 17 Pro Max in front,
-              overlapping asymmetrically. Height-driven so the pair never
-              overflows its space or touches the stats line below. */}
+              overlapping asymmetrically. The wrapper is capped at 62% of the
+              available box (~30% smaller than before) and left-aligned, so the
+              pair is compact and the phone never bleeds off the panel's right. */}
           <div
-            className="neu-rise flex min-h-0 flex-1 items-center"
+            className="neu-rise flex min-h-0 flex-1 items-center justify-start"
             style={{ animationDelay: '160ms' }}
           >
-            <div className="relative h-full max-h-full" style={{ aspectRatio: '1.46' }}>
+            <div className="relative h-full max-h-full" style={{ aspectRatio: '1.46', maxWidth: '62%' }}>
               {/* Laptop — left, height-driven, keeps its true 1.5:1 body ratio */}
               <div
                 className="absolute"
-                style={{ left: 0, bottom: '4%', height: '92%', aspectRatio: '4256 / 2834' }}
+                style={{ left: 0, bottom: '6%', height: '88%', aspectRatio: '4256 / 2834' }}
               >
                 <div
                   className="absolute overflow-hidden bg-white"
@@ -204,12 +205,12 @@ export default function LoginGate({ children }) {
                 />
               </div>
 
-              {/* Phone — in FRONT, overlapping the laptop's right edge, dropped
-                  lower for an asymmetric composition but kept clear of the stats
-                  line below. ~52% of the laptop height. */}
+              {/* Phone — in FRONT, overlapping the laptop's right edge, pulled
+                  LEFT so it never bleeds off the panel's right side. ~50% of
+                  the laptop height. */}
               <div
                 className="absolute z-10 hidden xl:block"
-                style={{ right: '1%', bottom: '2%', height: '52%', aspectRatio: '1520 / 3068' }}
+                style={{ right: '10%', bottom: '2%', height: '50%', aspectRatio: '1520 / 3068' }}
               >
                 <div
                   className="absolute overflow-hidden bg-[#fbfbfd]"
@@ -251,7 +252,7 @@ export default function LoginGate({ children }) {
       </aside>
 
       {/* ---------- Right: login card ---------- */}
-      <main className="relative flex h-[100dvh] items-center justify-center overflow-hidden bg-white px-6 py-10 sm:px-10">
+      <main className="neu-login-light relative flex h-[100dvh] items-center justify-center overflow-hidden bg-white px-6 py-10 sm:px-10">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 lg:hidden"
