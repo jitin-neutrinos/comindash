@@ -201,6 +201,8 @@ async def run_assistant_cycle(
 
     stats: dict = {}
     exc_caught = None
+    skipped = False
+    msg = None
     t0 = time.time()
     try:
         rows = await corpus_chunks.fetch_ranked_posts(session)
@@ -347,10 +349,18 @@ async def run_assistant_cycle(
     if own_run:
         run = await session.get(PipelineRun, run_id)
         if run:
-            run.status = RunStatus.done
+            # A genuinely failed insight run must NOT be recorded as a done
+            # pipeline run — /api/health, the StaleBanner and the scheduler
+            # freshness gate all read this status (2026-10-09: a JSONDecode-
+            # Error failure showed as "done" and masked the outage). A skip
+            # (quota/429, nothing changed) legitimately stays "done".
+            run.status = (
+                RunStatus.done if skipped else RunStatus.failed
+            ) if exc_caught else RunStatus.done
+            run.error = msg if (exc_caught and not skipped) else None
             run.finished_at = datetime.now(timezone.utc)
             run.stats = stats
             run.triggered_by = f"{triggered_by}:{stats.get('mode', 'unknown')}"
-    
+
     await session.commit()
     return stats
