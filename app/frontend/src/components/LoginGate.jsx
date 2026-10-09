@@ -31,6 +31,7 @@ export default function LoginGate({ children }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [shake, setShake] = useState(false)
+  const [showPw, setShowPw] = useState(false)
   const [idleMinutes, setIdleMinutes] = useState(30)
   const inputRef = useRef(null)
 
@@ -153,10 +154,7 @@ export default function LoginGate({ children }) {
           <img src={logoHorizontalWhite} alt="Neutrinos" className="h-6 w-auto shrink-0 self-start" />
 
           <div className="mt-5 shrink-0">
-            <span className="inline-flex rounded-full bg-white/10 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.18em] text-celeste ring-1 ring-white/15">
-              Community Intelligence
-            </span>
-            <h1 className="neu-rise mt-3 max-w-[18ch] font-sans text-[1.5rem] font-medium leading-[1.14] tracking-tight text-white xl:text-[1.85rem]">
+            <h1 className="neu-rise max-w-[18ch] font-sans text-[1.5rem] font-medium leading-[1.14] tracking-tight text-white xl:text-[1.85rem]">
               Hear your community before it speaks twice.
             </h1>
             <p
@@ -174,9 +172,9 @@ export default function LoginGate({ children }) {
             style={{ animationDelay: '160ms' }}
           >
             <div className="flex max-h-full min-h-0 items-end justify-center gap-5">
-              {/* Laptop: screen (16:9) + base, whole dashboard visible inside */}
+              {/* Laptop: light bezel so it reads against the dark blue panel */}
               <div className="flex min-h-0 flex-col items-center">
-                <div className="min-h-0 rounded-lg bg-[#0b0f1a] p-2 ring-1 ring-white/10">
+                <div className="min-h-0 rounded-lg bg-white/25 p-2 ring-1 ring-white/40 shadow-[0_20px_50px_-16px_rgba(0,0,0,0.5)]">
                   <img
                     src={shotLaptop}
                     alt="Community Insights dashboard on a laptop"
@@ -186,22 +184,39 @@ export default function LoginGate({ children }) {
                   />
                 </div>
                 {/* laptop base — wider than the screen, like a real laptop */}
-                <div className="h-2.5 w-[112%] shrink-0 rounded-b-[10px] bg-gradient-to-b from-white/20 to-white/[0.08] ring-1 ring-white/10" />
-                <div className="h-1 w-[18%] shrink-0 rounded-b-full bg-white/15" />
+                <div className="h-2.5 w-[112%] shrink-0 rounded-b-[10px] bg-gradient-to-b from-white/45 to-white/25 ring-1 ring-white/30" />
+                <div className="h-1 w-[18%] shrink-0 rounded-b-full bg-white/40" />
               </div>
 
-              {/* Phone frame (9:16) — clean capture, no sidebar */}
+              {/* Phone: iPhone 17 Pro Max frame (titanium) with status bar + Safari chrome */}
               <div className="hidden min-h-0 shrink-0 xl:flex">
-                <div className="min-h-0 rounded-[1.4rem] bg-[#0b0f1a] p-1.5 shadow-[0_20px_50px_-16px_rgba(0,0,0,0.65)] ring-1 ring-white/[0.15]">
-                  <div className="relative min-h-0 overflow-hidden rounded-[1.05rem] bg-white">
-                    <div className="absolute left-1/2 top-1 z-10 h-1 w-6 -translate-x-1/2 rounded-full bg-black/30" />
-                    <img
-                      src={shotPhone}
-                      alt="Community Insights on mobile"
-                      loading="lazy"
-                      decoding="async"
-                      className="block h-auto max-h-[30dvh] w-auto object-contain"
-                    />
+                <div className="flex min-h-0 flex-col overflow-hidden rounded-[2.1rem] bg-gradient-to-b from-[#3a3f4a] to-[#1c2027] p-[3px] shadow-[0_24px_60px_-16px_rgba(0,0,0,0.8)] ring-1 ring-white/25">
+                  {/* titanium side rails */}
+                  <div className="min-h-0 overflow-hidden rounded-[1.95rem] bg-[#0b0f1a]">
+                    <div className="relative flex max-h-[34dvh] flex-col">
+                      {/* iOS status bar */}
+                      <div className="flex shrink-0 items-center justify-between bg-white px-4 pt-1.5 pb-1 text-[8px] font-semibold text-black">
+                        <span className="tabular-nums">9:41</span>
+                        <span className="absolute left-1/2 top-0 h-4 w-16 -translate-x-1/2 rounded-b-[10px] bg-[#0b0f1a]" />
+                        <span className="flex items-center gap-1">
+                          <svg width="12" height="8" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5" width="3" height="7" rx="1"/><rect x="10" y="2" width="3" height="10" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></svg>
+                          <svg width="14" height="8" viewBox="0 0 22 12" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="18" height="11" rx="3"/><rect x="2" y="2" width="13" height="8" rx="1.5" fill="currentColor"/><rect x="20" y="4" width="2" height="4" rx="1" fill="currentColor"/></svg>
+                        </span>
+                      </div>
+                      {/* Safari URL bar */}
+                      <div className="flex shrink-0 items-center justify-center gap-1.5 bg-white/95 px-3 pb-1.5 text-[8px] text-black/60">
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
+                        <span className="truncate">comindash.jitinnair.com</span>
+                      </div>
+                      {/* page content */}
+                      <img
+                        src={shotPhone}
+                        alt="Community Insights on an iPhone"
+                        loading="lazy"
+                        decoding="async"
+                        className="block h-auto max-h-[26dvh] w-auto object-contain"
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -255,20 +270,43 @@ export default function LoginGate({ children }) {
             <label htmlFor="pw" className="mb-2 block text-sm font-medium text-black">
               Password
             </label>
-            <input
-              id="pw"
-              ref={inputRef}
-              type="password"
-              autoComplete="current-password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={busy}
-              className={`w-full rounded-xl border bg-white px-4 py-3 text-black outline-none transition-[border-color,box-shadow] duration-300 focus:border-blue focus:ring-4 focus:ring-blue/15 disabled:opacity-60 ${
-                error ? 'border-red-300' : 'border-line'
-              }`}
-              placeholder="••••••••"
-              style={{ animationName: shake ? 'shake' : undefined }}
-            />
+            <div className="relative">
+              <input
+                id="pw"
+                ref={inputRef}
+                type={showPw ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={busy}
+                className={`w-full rounded-xl border bg-white px-4 py-3 pr-12 text-black outline-none transition-[border-color,box-shadow] duration-300 focus:border-blue focus:ring-4 focus:ring-blue/15 disabled:opacity-60 ${
+                  error ? 'border-red-300' : 'border-line'
+                }`}
+                placeholder="••••••••"
+                style={{ animationName: shake ? 'shake' : undefined }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPw((v) => !v)}
+                aria-label={showPw ? 'Hide password' : 'Show password'}
+                aria-pressed={showPw}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted transition-colors hover:text-black"
+                tabIndex={-1}
+              >
+                {showPw ? (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 3l18 18" />
+                    <path d="M10.6 10.6a2 2 0 0 0 2.8 2.8" />
+                    <path d="M9.4 5.2A10.5 10.5 0 0 1 12 5c5 0 9 4.5 10 7-.4 1-1.2 2.2-2.3 3.3M6.2 6.2C3.9 7.7 2.5 10 2 12c1 2.5 5 7 10 7 1.2 0 2.3-.3 3.3-.7" />
+                  </svg>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+              </button>
+            </div>
 
             {error && (
               <p role="alert" className="mt-3 text-sm font-medium text-red-600">
