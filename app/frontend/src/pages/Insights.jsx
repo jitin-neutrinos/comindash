@@ -143,6 +143,10 @@ export default function Insights() {
   const [stateFilter, setStateFilter] = useState(null)
   const [sortKey, setSortKey] = useState('momentum')
   const [selected, setSelected] = useState(null)
+  // Mobile briefing anchor: the inline panel under the tapped row. Scrolled
+  // into view on open so the reader sees the panel appear where they tapped,
+  // instead of a dead tap (the old bottom-of-page behaviour).
+  const mobileBriefRef = useRef(null)
   // `page` is taken by the choreography ref above, so the list page index is
   // named explicitly rather than shadowed.
   const [pageNum, setPageNum] = useState(1)
@@ -197,6 +201,17 @@ export default function Insights() {
     if (!fresh) setSelected(null)
     else if (fresh !== selected) setSelected(fresh)
   }, [visible, selected])
+
+  // Mobile: bring the freshly-opened briefing under the tapped row into view.
+  // Desktop doesn't need it (the sticky aside is already on screen).
+  useEffect(() => {
+    if (!selected || window.matchMedia('(min-width: 1280px)').matches) return
+    // wait a frame so the panel exists in the DOM
+    const raf = requestAnimationFrame(() => {
+      mobileBriefRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    })
+    return () => cancelAnimationFrame(raf)
+  }, [selected?.id])
 
   useEffect(() => {
     const onKey = (e) => e.key === 'Escape' && setSelected(null)
@@ -292,6 +307,14 @@ export default function Insights() {
                     selected={selected?.id === item.id}
                     onSelect={(i) => setSelected(selected?.id === i.id ? null : i)}
                   />
+                  {/* Mobile: the briefing opens INLINE under the row that was
+                      tapped, not at the bottom of the whole list. On xl the
+                      sticky aside takes over and this copy disappears. */}
+                  {selected?.id === item.id && (
+                    <div ref={mobileBriefRef} className="mt-3 xl:hidden">
+                      <BriefPanel item={selected} onClose={() => setSelected(null)} />
+                    </div>
+                  )}
                 </div>
               ))}
               <Pagination
@@ -326,7 +349,7 @@ export default function Insights() {
         </div>
 
         {selected && (
-          <aside className="xl:col-span-2">
+          <aside className="hidden xl:col-span-2 xl:block">
             <div className="xl:sticky xl:top-6">
               <BriefPanel item={selected} onClose={() => setSelected(null)} />
             </div>

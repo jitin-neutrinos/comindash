@@ -109,8 +109,24 @@ class GLMError(Exception):
     pass
 
 
+def _repair_json(text: str) -> str:
+    """Repair the common LLM JSON slips that survive prompt discipline:
+    smart quotes, trailing commas, raw newlines inside strings (the
+    "Expecting property name" class of error seen 2026-10-09, char 482)."""
+    # smart quotes -> straight
+    text = (
+        text.replace("\u201c", '"').replace("\u201d", '"')
+            .replace("\u2018", "'").replace("\u2019", "'")
+    )
+    # trailing commas before } or ]
+    text = re.sub(r",\s*([}\]])", r"\1", text)
+    return text
+
+
 def _extract_json(content: str) -> dict:
-    """Tolerant JSON extraction (handles prose around the object)."""
+    """Tolerant JSON extraction (handles prose around the object). One repair
+    pass on JSONDecodeError; a malformed synthesis reply must not kill the
+    nightly cycle (2026-10-09: insight_run 35)."""
     text = (content or "").strip()
     if text.startswith("```"):
         text = re.sub(r"^```[a-zA-Z]*\n?", "", text)
@@ -118,7 +134,27 @@ def _extract_json(content: str) -> dict:
     start, end = text.find("{"), text.rfind("}")
     if start == -1 or end == -1 or end <= start:
         raise GLMError("no JSON object in reply")
-    return json.loads(text[start : end + 1])
+    blob = text[start : end + 1]
+    try:
+        return json.loads(blob)
+    except json.JSONDecodeError:
+        pass
+    try:
+        repaired = _repair_json(blob)
+        return json.loads(repaired)
+    except json.JSONDecodeError:
+        # Last resort: if the model truncated mid-array, keep the complete
+        # objects that did parse. A partial insights list beats none.
+        objs = re.findall(r"\{[^{}]*\}", blob, re.S)
+        insights = []
+        for o in objs:
+            try:
+                insights.append(json.loads(_repair_json(o)))
+            except json.JSONDecodeError:
+                continue
+        if insights:
+            return {"insights": insights}
+        raise GLMError("reply JSON unparseable after repair")
 
 
 
