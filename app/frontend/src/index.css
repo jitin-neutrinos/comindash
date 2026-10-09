@@ -238,6 +238,12 @@ html.dark .shimmer {
   background: rgba(0, 102, 255, 0.35);
 }
 .sk-phone-header { background: #00053d; }
+/* the skeleton rail + phone header are dark surfaces inside the (light) login
+   panel, so their text must stay light regardless of the panel's ink pin */
+.sk-rail,
+.sk-rail * { color: #fff; }
+.sk-phone-header,
+.sk-phone-header * { color: #fff; }
 /* macOS traffic-light dot */
 .sk-tl {
   display: block;

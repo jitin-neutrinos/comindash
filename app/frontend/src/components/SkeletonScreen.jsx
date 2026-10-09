@@ -51,31 +51,34 @@ function MacWindow({ children }) {
   return (
     <div className="flex h-full flex-col bg-[#1c1c1e]">
       {/* macOS menu bar: Apple menu, app menus, status area */}
-      <div className="flex shrink-0 items-center justify-between bg-[#2a2a2d]/95 px-2.5 py-[5px]">
+      <div className="flex shrink-0 items-center justify-between bg-[#2a2a2d]/95 px-2.5 py-[4px]">
         <div className="flex items-center gap-2.5">
-          <svg width="9" height="11" viewBox="0 0 24 28" fill="#fff" aria-hidden="true">
+          <svg width="8" height="10" viewBox="0 0 24 28" fill="#fff" aria-hidden="true">
             <path d="M18.7 14.8c0-3 2.5-4.4 2.6-4.5-1.4-2.1-3.6-2.4-4.4-2.4-1.9-.2-3.6 1.1-4.6 1.1s-2.4-1.1-4-1.1c-2 0-3.9 1.2-5 3-2.1 3.7-.5 9.1 1.5 12.1 1 1.5 2.2 3.1 3.8 3 1.5-.1 2.1-1 3.9-1s2.4 1 4 1 2.7-1.5 3.7-2.9c1.2-1.7 1.6-3.3 1.7-3.4-.1 0-3.2-1.2-3.2-4.9zM15.6 6.3c.8-1 1.4-2.4 1.3-3.8-1.2.1-2.7.8-3.6 1.8-.8.9-1.4 2.3-1.2 3.7 1.4.1 2.7-.7 3.5-1.7z" />
           </svg>
           <span className="flex items-center gap-1.5">
-            <NeuMark size={11} />
-            <span className="text-[8px] font-semibold text-white/90">Community Insights</span>
+            <NeuMark size={10} />
+            <span className="text-[7px] font-semibold text-white/90">Community Insights</span>
           </span>
-          <span className="flex items-center gap-2.5 text-[8px] text-white/70">
+          <span className="flex items-center gap-2 text-[7px] text-white/70">
             <span>File</span><span>Edit</span><span>View</span><span>Window</span><span>Help</span>
           </span>
         </div>
-        <div className="flex items-center gap-2.5 text-white/60">
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
-          <svg width="10" height="9" viewBox="0 0 24 20" fill="currentColor"><path d="M12 18l3-4a5 5 0 0 0-6 0l3 4Z" /><path d="M5 11a11 11 0 0 1 14 0l-2 2.4a8 8 0 0 0-10 0L5 11Z" opacity=".7" /></svg>
-          <svg width="12" height="9" viewBox="0 0 26 12" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="21" height="11" rx="3" /><rect x="2" y="2" width="15" height="8" rx="1.5" fill="currentColor" /><rect x="23" y="4" width="2" height="4" rx="1" fill="currentColor" /></svg>
-          <span className="text-[8px] tabular-nums text-white/70">Mon 9:41</span>
+        <div className="flex items-center gap-2 text-white/60">
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>
+          <svg width="9" height="8" viewBox="0 0 24 20" fill="currentColor"><path d="M12 18l3-4a5 5 0 0 0-6 0l3 4Z" /><path d="M5 11a11 11 0 0 1 14 0l-2 2.4a8 8 0 0 0-10 0L5 11Z" opacity=".7" /></svg>
+          <svg width="11" height="8" viewBox="0 0 26 12" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="21" height="11" rx="3" /><rect x="2" y="2" width="15" height="8" rx="1.5" fill="currentColor" /><rect x="23" y="4" width="2" height="4" rx="1" fill="currentColor" /></svg>
+          <span className="text-[7px] tabular-nums text-white/70">Mon 9:41</span>
         </div>
       </div>
-      {/* app window: sidebar rail + content */}
+      {/* app window fills the rest of the screen — no desktop gap, so the
+          skeleton reads as a full-screen MacBook app */}
       <div className="flex min-h-0 flex-1">
-        <div className="flex w-[16%] shrink-0 flex-col items-center gap-2 bg-[#00053d] py-2.5">
-          <NeuMark size={15} />
-          <div className="mt-1 flex w-full flex-col items-center gap-2.5">
+        {/* narrow sidebar rail (true to the dashboard's w-20 icon rail) — its
+            own dark surface, so it must not inherit the panel's light ink */}
+        <div className="sk-rail flex w-[11%] shrink-0 flex-col items-center gap-1.5 bg-[#00053d] py-2">
+          <NeuMark size={12} />
+          <div className="mt-0.5 flex w-full flex-col items-center gap-2">
             {NAV.map((n, i) => (
               <div key={n} className={`sk-nav ${i === 0 ? 'sk-nav--on' : ''}`} />
             ))}
@@ -83,11 +86,11 @@ function MacWindow({ children }) {
         </div>
         <div className="flex min-w-0 flex-1 flex-col bg-white">
           {/* window title bar with traffic lights */}
-          <div className="flex shrink-0 items-center gap-1.5 border-b border-black/5 bg-[#ececec] px-2.5 py-[4px]">
+          <div className="flex shrink-0 items-center gap-1.5 border-b border-black/5 bg-[#ececec] px-2.5 py-[3px]">
             <i className="sk-tl" style={{ background: '#ff5f57' }} />
             <i className="sk-tl" style={{ background: '#febc2e' }} />
             <i className="sk-tl" style={{ background: '#28c840' }} />
-            <span className="mx-auto text-[7px] font-medium text-black/55">Community Insights — Overview</span>
+            <span className="mx-auto text-[6px] font-medium text-black/55">Community Insights — Overview</span>
           </div>
           <div className="min-h-0 flex-1">{children}</div>
         </div>
@@ -264,10 +267,10 @@ function AdminL() {
 function PhoneShell({ children }) {
   return (
     <div className="flex h-full flex-col bg-[#f2f2f7]">
-      {/* status bar */}
-      <div className="relative flex shrink-0 items-center justify-between bg-white px-3.5 pb-1.5 pt-2 text-[8px] font-semibold text-black">
-        <span className="tabular-nums">9:41</span>
-        <span className="flex items-center gap-1">
+      {/* status bar — text and glyphs pinned to black in BOTH themes */}
+      <div className="relative flex shrink-0 items-center justify-between bg-white px-3.5 pb-1.5 pt-2 text-[8px] font-semibold" style={{ color: '#000' }}>
+        <span className="tabular-nums" style={{ color: '#000' }}>9:41</span>
+        <span className="flex items-center gap-1" style={{ color: '#000' }}>
           <svg width="11" height="7" viewBox="0 0 18 12" fill="currentColor"><rect x="0" y="8" width="3" height="4" rx="1" /><rect x="5" y="5" width="3" height="7" rx="1" /><rect x="10" y="2" width="3" height="10" rx="1" /><rect x="15" y="0" width="3" height="12" rx="1" /></svg>
           <svg width="13" height="7" viewBox="0 0 22 12" fill="none" stroke="currentColor" strokeWidth="1"><rect x="0.5" y="0.5" width="18" height="11" rx="3" /><rect x="2" y="2" width="13" height="8" rx="1.5" fill="currentColor" /><rect x="20" y="4" width="2" height="4" rx="1" fill="currentColor" /></svg>
         </span>

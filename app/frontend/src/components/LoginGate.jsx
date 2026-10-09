@@ -170,68 +170,78 @@ export default function LoginGate({ children }) {
             </p>
           </div>
 
-          {/* device pair: MacBook Pro 16 with an iPhone 17 Pro Max in front,
-              overlapping asymmetrically. The wrapper is capped at 62% of the
-              available box (~30% smaller than before) and left-aligned, so the
-              pair is compact and the phone never bleeds off the panel's right. */}
+          {/* device pair: MacBook Pro 16 with an iPhone 17 Pro Max in front.
+              Both are sized in vw units (dynamic) and capped so they can never
+              overlap the headline above or the stats line below, nor overflow
+              the panel's right edge. The MacBook renders full-screen: the
+              skeleton fills the whole screen area, no blue gap above. */}
           <div
-            className="neu-rise flex min-h-0 flex-1 items-center justify-start"
+            className="neu-rise relative min-h-0 flex-1"
             style={{ animationDelay: '160ms' }}
           >
-            <div className="relative h-full max-h-full" style={{ aspectRatio: '1.46', maxWidth: '62%' }}>
-              {/* Laptop — left, height-driven, keeps its true 1.5:1 body ratio */}
+            {/* Laptop — left-anchored, ~30% smaller again, true 1.5:1 body */}
+            <div
+              className="absolute"
+              style={{
+                left: 0,
+                top: '50%',
+                transform: 'translateY(-50%)',
+                width: 'clamp(240px, 46vw, 620px)',
+                aspectRatio: '4256 / 2834',
+              }}
+            >
               <div
-                className="absolute"
-                style={{ left: 0, bottom: '6%', height: '88%', aspectRatio: '4256 / 2834' }}
+                className="absolute overflow-hidden bg-white"
+                style={{
+                  left: `${(400 / 4256) * 100}%`,
+                  top: `${(364 / 2834) * 100}%`,
+                  width: `${(3456 / 4256) * 100}%`,
+                  height: `${(2170 / 2834) * 100}%`,
+                  borderRadius: '0.8%',
+                }}
               >
-                <div
-                  className="absolute overflow-hidden bg-white"
-                  style={{
-                    left: `${(400 / 4256) * 100}%`,
-                    top: `${(364 / 2834) * 100}%`,
-                    width: `${(3456 / 4256) * 100}%`,
-                    height: `${(2170 / 2834) * 100}%`,
-                    borderRadius: '0.8%',
-                  }}
-                >
-                  <SkeletonStage form="laptop" page={page} leavingPage={leavingPage} hostRef={skRef} />
-                </div>
-                <img
-                  src={macbookFrame}
-                  alt="Community Insights on a MacBook Pro 16"
-                  loading="eager"
-                  decoding="async"
-                  className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-[0_28px_55px_rgba(0,0,0,0.5)]"
-                />
+                <SkeletonStage form="laptop" page={page} leavingPage={leavingPage} hostRef={skRef} />
               </div>
+              <img
+                src={macbookFrame}
+                alt="Community Insights on a MacBook Pro 16"
+                loading="eager"
+                decoding="async"
+                className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-[0_28px_55px_rgba(0,0,0,0.5)]"
+              />
+            </div>
 
-              {/* Phone — in FRONT, overlapping the laptop's right edge, pulled
-                  LEFT so it never bleeds off the panel's right side. ~50% of
-                  the laptop height. */}
+            {/* Phone — in front, right of centre, sized in vw so it scales with
+                the viewport and stays clear of the panel edges. */}
+            <div
+              className="absolute z-10 hidden xl:block"
+              style={{
+                left: 'clamp(300px, 40vw, 540px)',
+                top: '50%',
+                transform: 'translateY(-42%)',
+                width: 'clamp(70px, 9vw, 130px)',
+                aspectRatio: '1520 / 3068',
+              }}
+            >
               <div
-                className="absolute z-10 hidden xl:block"
-                style={{ right: '10%', bottom: '2%', height: '50%', aspectRatio: '1520 / 3068' }}
+                className="absolute overflow-hidden bg-[#fbfbfd]"
+                style={{
+                  left: '6.58%',
+                  top: '3.26%',
+                  width: '86.84%',
+                  height: '93.48%',
+                  borderRadius: '13% / 6.5%',
+                }}
               >
-                <div
-                  className="absolute overflow-hidden bg-[#fbfbfd]"
-                  style={{
-                    left: '6.58%',
-                    top: '3.26%',
-                    width: '86.84%',
-                    height: '93.48%',
-                    borderRadius: '13% / 6.5%',
-                  }}
-                >
-                  <SkeletonScreen form="phone" page={page} />
-                </div>
-                <img
-                  src={iphoneFrame}
-                  alt="Community Insights on an iPhone 17 Pro Max"
-                  loading="lazy"
-                  decoding="async"
-                  className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-[0_22px_40px_rgba(0,0,0,0.75)]"
-                />
+                <SkeletonScreen form="phone" page={page} />
               </div>
+              <img
+                src={iphoneFrame}
+                alt="Community Insights on an iPhone 17 Pro Max"
+                loading="lazy"
+                decoding="async"
+                className="pointer-events-none absolute inset-0 h-full w-full drop-shadow-[0_22px_40px_rgba(0,0,0,0.75)]"
+              />
             </div>
           </div>
 
