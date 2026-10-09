@@ -71,28 +71,26 @@ function MacWindow({ children }) {
           <span className="text-[7px] tabular-nums text-white/70">Mon 9:41</span>
         </div>
       </div>
-      {/* app window fills the rest of the screen — no desktop gap, so the
-          skeleton reads as a full-screen MacBook app */}
-      <div className="flex min-h-0 flex-1">
-        {/* narrow sidebar rail (true to the dashboard's w-20 icon rail) — its
-            own dark surface, so it must not inherit the panel's light ink */}
-        <div className="sk-rail flex w-[11%] shrink-0 flex-col items-center gap-1.5 bg-[#00053d] py-2">
-          <NeuMark size={12} />
-          <div className="mt-0.5 flex w-full flex-col items-center gap-2">
-            {NAV.map((n, i) => (
-              <div key={n} className={`sk-nav ${i === 0 ? 'sk-nav--on' : ''}`} />
-            ))}
-          </div>
+      {/* the app window: title bar spans the FULL window width, and the sidebar
+          sits INSIDE the window (below the title bar), like a real macOS app */}
+      <div className="flex min-h-0 flex-1 flex-col bg-white">
+        <div className="flex shrink-0 items-center gap-1.5 border-b border-black/5 bg-[#ececec] px-2.5 py-[3px]">
+          <i className="sk-tl" style={{ background: '#ff5f57' }} />
+          <i className="sk-tl" style={{ background: '#febc2e' }} />
+          <i className="sk-tl" style={{ background: '#28c840' }} />
+          <span className="mx-auto text-[6px] font-medium text-black/55">Community Insights — Overview</span>
         </div>
-        <div className="flex min-w-0 flex-1 flex-col bg-white">
-          {/* window title bar with traffic lights */}
-          <div className="flex shrink-0 items-center gap-1.5 border-b border-black/5 bg-[#ececec] px-2.5 py-[3px]">
-            <i className="sk-tl" style={{ background: '#ff5f57' }} />
-            <i className="sk-tl" style={{ background: '#febc2e' }} />
-            <i className="sk-tl" style={{ background: '#28c840' }} />
-            <span className="mx-auto text-[6px] font-medium text-black/55">Community Insights — Overview</span>
+        <div className="flex min-h-0 flex-1">
+          {/* narrow sidebar rail INSIDE the app (matches the dashboard's w-20) */}
+          <div className="sk-rail flex w-[8.5%] shrink-0 flex-col items-center gap-1 bg-[#00053d] py-1.5">
+            <NeuMark size={11} />
+            <div className="mt-0.5 flex w-full flex-col items-center gap-1.5">
+              {NAV.map((n, i) => (
+                <div key={n} className={`sk-nav ${i === 0 ? 'sk-nav--on' : ''}`} />
+              ))}
+            </div>
           </div>
-          <div className="min-h-0 flex-1">{children}</div>
+          <div className="min-w-0 flex-1 bg-white">{children}</div>
         </div>
       </div>
     </div>
@@ -448,25 +446,34 @@ const PHONE = {
   relationships: RelationshipsP, explorer: ExplorerP, admin: AdminP,
 }
 
-export function SkeletonScreen({ form = 'laptop', page = 'overview' }) {
+/* Chrome and body are separate components so a page swap only re-renders the
+   BODY — the menu bar, sidebar rail, title bar, status bar and tab bar stay
+   mounted and completely still while the content cross-fades underneath. */
+export function SkeletonChrome({ form = 'laptop', children }) {
+  if (form === 'phone') return <PhoneShell>{children}</PhoneShell>
+  return <MacWindow>{children}</MacWindow>
+}
+
+export function SkeletonBody({ form = 'laptop', page = 'overview' }) {
   if (form === 'phone') {
     const Comp = PHONE[page] || OverviewP
-    return (
-      <PhoneShell>
-        <Comp />
-      </PhoneShell>
-    )
+    return <Comp />
   }
   const Comp = LAPTOP[page] || OverviewL
+  return <Comp />
+}
+
+/** Back-compat: chrome + body in one node (used nowhere critical). */
+export function SkeletonScreen({ form = 'laptop', page = 'overview' }) {
   return (
-    <MacWindow>
-      <Comp />
-    </MacWindow>
+    <SkeletonChrome form={form}>
+      <SkeletonBody form={form} page={page} />
+    </SkeletonChrome>
   )
 }
 
 /**
- * GSAP cross-fade rotation. Keeps the outgoing variant mounted and fades it out
+ * GSAP cross-fade rotation. Keeps the outgoing body mounted and fades it out
  * while the incoming one fades in, so the two overlap and there is never a
  * blank frame or a blur snap.
  */
@@ -512,22 +519,29 @@ export function useSkeletonRotation(intervalMs = ROTATE_MS) {
   return { page: PAGES[index], leavingPage: leaving == null ? null : PAGES[leaving], ref: hostRef }
 }
 
+/**
+ * Renders the device chrome ONCE, with only the body cross-fading between the
+ * outgoing and incoming page. The chrome node is never re-keyed, so its menu
+ * bar / sidebar / status bar do not animate or re-mount on a page swap.
+ */
 export function SkeletonStage({ form, page, leavingPage, hostRef }) {
   return (
-    <div ref={hostRef} className="relative h-full w-full">
-      {leavingPage && (
-        <div key={`out-${leavingPage}`} data-sk-panel className="absolute inset-0" style={{ opacity: 0 }}>
-          <SkeletonScreen form={form} page={leavingPage} />
+    <SkeletonChrome form={form}>
+      <div ref={hostRef} className="relative h-full w-full">
+        {leavingPage && (
+          <div key={`out-${leavingPage}`} data-sk-panel className="absolute inset-0" style={{ opacity: 0 }}>
+            <SkeletonBody form={form} page={leavingPage} />
+          </div>
+        )}
+        <div
+          key={`in-${page}`}
+          data-sk-panel
+          className="absolute inset-0"
+          style={{ opacity: leavingPage ? 0 : 1 }}
+        >
+          <SkeletonBody form={form} page={page} />
         </div>
-      )}
-      <div
-        key={`in-${page}`}
-        data-sk-panel
-        className="absolute inset-0"
-        style={{ opacity: leavingPage ? 0 : 1 }}
-      >
-        <SkeletonScreen form={form} page={page} />
       </div>
-    </div>
+    </SkeletonChrome>
   )
 }

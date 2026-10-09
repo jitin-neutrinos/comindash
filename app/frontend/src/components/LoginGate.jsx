@@ -36,6 +36,7 @@ export default function LoginGate({ children }) {
   const [idleMinutes, setIdleMinutes] = useState(30)
   const inputRef = useRef(null)
   const { page, leavingPage, ref: skRef } = useSkeletonRotation()
+  const { page: phonePage, leavingPage: phoneLeaving, ref: phoneRef } = useSkeletonRotation()
 
   const doLogout = useCallback(async () => {
     try {
@@ -233,7 +234,7 @@ export default function LoginGate({ children }) {
                   borderRadius: '13% / 6.5%',
                 }}
               >
-                <SkeletonScreen form="phone" page={page} />
+                <SkeletonStage form="phone" page={phonePage} leavingPage={phoneLeaving} hostRef={phoneRef} />
               </div>
               <img
                 src={iphoneFrame}
