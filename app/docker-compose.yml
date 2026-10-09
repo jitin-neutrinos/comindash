@@ -117,7 +117,11 @@ services:
   loki:
     image: grafana/loki:2.9.4
     networks:
-      - app_default
+      app_default:
+        # Pinned: dynamic assignment grabbed 172.22.0.3 at the 2026-10-09 boot
+        # and blocked the backend (pinned .3) with "Address already in use".
+        # Core services own .2-.8; observability lives in .240+.
+        ipv4_address: 172.22.0.240
     volumes:
       - ./loki-config.yml:/etc/loki/local-config.yaml
     command: -config.file=/etc/loki/local-config.yaml
@@ -129,7 +133,8 @@ services:
   promtail:
     image: grafana/promtail:2.9.4
     networks:
-      - app_default
+      app_default:
+        ipv4_address: 172.22.0.241
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./promtail-config.yml:/etc/promtail/config.yml
@@ -142,7 +147,8 @@ services:
   prometheus:
     image: prom/prometheus:v2.45.3
     networks:
-      - app_default
+      app_default:
+        ipv4_address: 172.22.0.242
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml
       - prometheus_data:/prometheus
